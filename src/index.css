@@ -1,0 +1,246 @@
+@import 'tailwindcss';
+
+/*
+ * Theme switching is class-based (`.dark` on <html>) rather than
+ * media-query-based, because the theme is a user preference that can override
+ * the OS setting.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Semantic colour tokens.
+ *
+ * Components reference roles (`surface-raised`, `content-muted`) rather than
+ * literal colours, so the two themes below are the only place a palette
+ * decision is made.
+ */
+:root {
+  --surface-sunken: #f1f5f9;
+  --surface-base: #ffffff;
+  --surface-raised: #f8fafc;
+  --surface-overlay: #ffffff;
+  --surface-hover: #eef2f7;
+  --surface-active: #e2e8f0;
+
+  --border-subtle: #e2e8f0;
+  --border-strong: #cbd5e1;
+
+  --content-primary: #0f172a;
+  --content-secondary: #475569;
+  --content-muted: #94a3b8;
+  --content-inverse: #ffffff;
+
+  --accent: #4f46e5;
+  --accent-strong: #4338ca;
+  --accent-soft: #e0e7ff;
+
+  --shadow-overlay: 0 24px 60px -12px rgb(15 23 42 / 0.25);
+}
+
+.dark {
+  --surface-sunken: #0a0c10;
+  --surface-base: #0f1116;
+  --surface-raised: #161a23;
+  --surface-overlay: #1b2029;
+  --surface-hover: #1e2430;
+  --surface-active: #2a3350;
+
+  --border-subtle: #232838;
+  --border-strong: #333a4d;
+
+  --content-primary: #e2e8f0;
+  --content-secondary: #94a3b8;
+  --content-muted: #64748b;
+  --content-inverse: #0f172a;
+
+  --accent: #818cf8;
+  --accent-strong: #6366f1;
+  --accent-soft: #2a2f52;
+
+  --shadow-overlay: 0 24px 60px -12px rgb(0 0 0 / 0.6);
+}
+
+/* `inline` keeps the var() reference intact so it resolves per-theme. */
+@theme inline {
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-base: var(--surface-base);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-overlay: var(--surface-overlay);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-active: var(--surface-active);
+
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+
+  --color-content-primary: var(--content-primary);
+  --color-content-secondary: var(--content-secondary);
+  --color-content-muted: var(--content-muted);
+  --color-content-inverse: var(--content-inverse);
+
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+
+  --font-mono:
+    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--surface-base);
+    color: var(--content-primary);
+    /* The window chrome is the app; rubber-band scrolling looks broken here. */
+    overscroll-behavior: none;
+  }
+
+  /* The whole surface is an application, not a document. */
+  * {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* …except anywhere the user is meant to read or edit text. */
+  input,
+  textarea,
+  [contenteditable='true'],
+  .selectable,
+  .monaco-editor,
+  .monaco-editor * {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  /* Slim, unobtrusive scrollbars that match the theme. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--border-strong);
+    border: 2px solid transparent;
+    border-radius: 9999px;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--content-muted);
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
+@layer components {
+  /*
+   * Resize handles are 1px visually but need a larger hit area, so the grab
+   * zone is padded and the visible line is drawn by a child pseudo-element.
+   */
+  .resize-handle {
+    position: relative;
+    flex: none;
+    background-color: var(--border-subtle);
+    transition: background-color 120ms ease;
+  }
+
+  .resize-handle::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    z-index: 10;
+  }
+
+  .resize-handle:hover,
+  .resize-handle:active {
+    background-color: var(--accent);
+  }
+
+  .resize-handle-vertical {
+    width: 1px;
+    cursor: col-resize;
+  }
+
+  .resize-handle-horizontal {
+    height: 1px;
+    cursor: row-resize;
+  }
+}
+
+@layer utilities {
+  /* Panels whose content scrolls but whose container must not grow. */
+  .min-h-0 {
+    min-height: 0;
+  }
+
+  @keyframes inktex-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes inktex-scale-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes inktex-slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in {
+    animation: inktex-fade-in 120ms ease-out;
+  }
+
+  .animate-scale-in {
+    animation: inktex-scale-in 140ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-slide-up {
+    animation: inktex-slide-up 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-fade-in,
+    .animate-scale-in,
+    .animate-slide-up {
+      animation: none;
+    }
+  }
+}

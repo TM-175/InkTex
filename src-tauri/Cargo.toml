@@ -1,0 +1,56 @@
+[package]
+name = "inktex"
+version = "1.0.0"
+description = "A local-first desktop LaTeX editor"
+authors = ["InkTex"]
+edition = "2021"
+rust-version = "1.77"
+license = "MIT"
+
+# The library holds all application logic so it can be unit-tested without a
+# running webview; `main.rs` is a thin launcher on top of it.
+[lib]
+name = "inktex_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6", features = [] }
+
+[dependencies]
+tauri = { version = "2.11", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2.7"
+tauri-plugin-opener = "2.5"
+
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+
+# Filesystem watching with debouncing so a burst of editor writes collapses
+# into a single UI refresh.
+notify = "8.0"
+notify-debouncer-full = "0.7"
+
+regex = "1.13"
+walkdir = "2.5"
+shell-words = "1.1"
+
+# Used to signal an entire process group when a compile is canceled, so the
+# engine latexmk spawned dies with it.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+# `test` provides the mock runtime the engine integration tests build an
+# AppHandle from, without needing a real webview.
+tauri = { version = "2.11", features = ["test"] }
+
+[features]
+# Enabled by `tauri build --debug`.
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

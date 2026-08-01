@@ -1,0 +1,43 @@
+{
+  "name": "inktex",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "A local-first desktop LaTeX editor",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "tauri": "tauri",
+    "start": "tauri dev",
+    "bundle": "tauri build",
+    "rust:check": "cargo check --manifest-path src-tauri/Cargo.toml",
+    "rust:fmt": "cargo fmt --manifest-path src-tauri/Cargo.toml",
+    "rust:clippy": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings"
+  },
+  "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-dialog": "^2.7.2",
+    "@tauri-apps/plugin-opener": "^2.5.4",
+    "lucide-react": "^1.28.0",
+    "monaco-editor": "^0.56.0",
+    "pdfjs-dist": "^6.2.108",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@tauri-apps/cli": "^2.11.4",
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3",
+    "vite": "^8.2.0"
+  }
+}

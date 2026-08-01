@@ -1,0 +1,71 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "InkTex",
+  "version": "1.0.0",
+  "identifier": "dev.inktex.app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "InkTex",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true,
+        "decorations": true,
+        "dragDropEnabled": true,
+        "theme": "Dark",
+        "titleBarStyle": "Overlay"
+      }
+    ],
+    "security": {
+      "csp": {
+        "default-src": "'self'",
+        "img-src": "'self' asset: http://asset.localhost data: blob:",
+        "style-src": "'self' 'unsafe-inline'",
+        "font-src": "'self' data:",
+        "script-src": "'self' 'wasm-unsafe-eval'",
+        "worker-src": "'self' blob:",
+        "connect-src": "'self' ipc: http://ipc.localhost blob: data:"
+      },
+      "assetProtocol": {
+        "enable": true,
+        "scope": {
+          "allow": ["**"],
+          "deny": []
+        }
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "copyright": "MIT",
+    "category": "DeveloperTool",
+    "shortDescription": "Local-first desktop LaTeX editor",
+    "longDescription": "InkTex is a local-first desktop LaTeX editor with a Monaco-based source editor, live PDF preview, and latexmk-driven compilation against your local TeX installation.",
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "linux": {
+      "deb": {
+        "depends": []
+      }
+    }
+  }
+}
