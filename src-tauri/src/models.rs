@@ -48,6 +48,9 @@ pub struct ProjectInfo {
     pub name: String,
     /// Best guess at the document to compile, relative to the root.
     pub main_document: Option<String>,
+    /// Set when the user opened a single file rather than a folder: the file
+    /// they picked, which the UI opens as the active tab.
+    pub opened_file: Option<String>,
     pub tree: FileNode,
     pub file_count: usize,
 }
@@ -228,11 +231,14 @@ pub struct CompileResult {
 }
 
 /// Emitted on `compile://output` while a build runs.
+///
+/// Carries a batch of lines rather than one, so a noisy build does not send
+/// thousands of individual IPC messages.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompileOutputEvent {
     pub id: String,
-    pub line: String,
+    pub lines: Vec<String>,
 }
 
 /// Emitted on `compile://started`.

@@ -16,7 +16,12 @@ import type {
   TexEnvironment,
 } from '@/types/compile';
 import { toAppError } from '@/types/errors';
-import { buildRequest, sortDiagnostics, summarize } from '@/services/compileService';
+import {
+  buildRequest,
+  resolveCompileTarget,
+  sortDiagnostics,
+  summarize,
+} from '@/services/compileService';
 import { currentSettings } from './settingsStore';
 import { currentProject, useProjectStore } from './projectStore';
 import { notify, useUiStore } from './uiStore';
@@ -46,7 +51,7 @@ interface CompileState {
   probeEnvironment: () => Promise<void>;
   compile: (options?: { force?: boolean; silent?: boolean }) => Promise<void>;
   cancel: () => Promise<void>;
-  appendOutput: (line: string) => void;
+  appendOutput: (lines: string[]) => void;
   clearOutput: () => void;
   cleanAuxiliaryFiles: () => Promise<void>;
   /** Load a PDF that already exists on disk, without compiling. */
@@ -84,12 +89,14 @@ export const useCompileStore = create<CompileState>((set, get) => ({
 
   compile: async ({ force = false, silent = false } = {}) => {
     const project = currentProject();
-    if (project === null || project.mainDocument === null) {
+    const { tabs, activePath } = useProjectStore.getState();
+
+    // Build whatever the user is looking at, not a pinned "main" document.
+    const target = resolveCompileTarget(project, tabs, activePath);
+
+    if (project === null || target === null) {
       if (!silent) {
-        notify.warning(
-          'No main document is set',
-          'Right-click a .tex file in the explorer and choose “Set as main document”.',
-        );
+        notify.warning('Nothing to compile', 'Open a .tex file first.');
       }
       return;
     }
@@ -102,7 +109,7 @@ export const useCompileStore = create<CompileState>((set, get) => ({
     await useProjectStore.getState().saveAllTabs();
 
     const settings = currentSettings();
-    const request = buildRequest(project.root, project.mainDocument, settings, { force });
+    const request = buildRequest(project.root, target, settings, { force });
 
     set({ phase: 'running', outputLines: [], startedAt: Date.now() });
 
@@ -112,7 +119,7 @@ export const useCompileStore = create<CompileState>((set, get) => ({
       const historyEntry: CompileHistoryEntry = {
         id: result.id,
         status: result.status,
-        mainDocument: project.mainDocument,
+        mainDocument: target,
         compiler: settings.defaultCompiler,
         durationMs: result.durationMs,
         errorCount: result.errorCount,
@@ -167,9 +174,11 @@ export const useCompileStore = create<CompileState>((set, get) => ({
     }
   },
 
-  appendOutput: (line) => {
+  appendOutput: (lines) => {
+    if (lines.length === 0) return;
+
     set((state) => {
-      const outputLines = [...state.outputLines, line];
+      const outputLines = [...state.outputLines, ...lines];
       // Keep memory bounded on a runaway build.
       return {
         outputLines:

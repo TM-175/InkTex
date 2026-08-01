@@ -22,6 +22,7 @@ import { expandToReveal, findNode } from '@/services/fileTreeService';
 import { classifyTab } from '@/services/tabService';
 import { currentSettings } from './settingsStore';
 import { confirm, notify } from './uiStore';
+import { useCompileStore } from './compileStore';
 import { debounce } from '@/utils/debounce';
 import { basename, dirname } from '@/utils/path';
 
@@ -148,6 +149,18 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     },
 
     openProject: async (path) => {
+      // Single choke point for every way a project can be opened — the welcome
+      // cards, recents, drag-and-drop and session restore all land here — so
+      // the TeX requirement is enforced in exactly one place.
+      const environment = useCompileStore.getState().environment;
+      if (environment !== null && !environment.installed) {
+        notify.error(
+          'LaTeX is not installed',
+          'InkTex needs a TeX distribution to compile. Follow the setup instructions on the start screen.',
+        );
+        return false;
+      }
+
       set({ status: 'opening' });
 
       try {
@@ -172,9 +185,11 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
         await get().loadRecentProjects();
 
-        // Open the main document so the editor is never empty on arrival.
-        if (project.mainDocument !== null) {
-          await get().openFile(project.mainDocument);
+        // Open the file the user picked, or the main document, so the editor is
+        // never empty on arrival.
+        const initial = project.openedFile ?? project.mainDocument;
+        if (initial !== null) {
+          await get().openFile(initial);
         }
         saveSession();
         return true;

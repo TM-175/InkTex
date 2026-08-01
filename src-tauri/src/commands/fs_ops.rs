@@ -31,8 +31,13 @@ pub fn modified_millis(path: &Path) -> u64 {
 }
 
 #[tauri::command]
-pub fn read_text_file(state: State<'_, AppState>, path: String) -> AppResult<FileContent> {
-    let root = state.project.require()?;
+pub fn read_text_file(
+    window: tauri::Window,
+    state: State<'_, AppState>,
+    path: String,
+) -> AppResult<FileContent> {
+    let ws = state.for_window(window.label());
+    let root = ws.project.require()?;
     let target = paths::resolve_within(&root, Path::new(&path))?;
 
     let metadata = fs::metadata(&target).map_err(|e| AppError::from_io(&e, &target))?;
@@ -73,11 +78,13 @@ pub fn read_text_file(state: State<'_, AppState>, path: String) -> AppResult<Fil
 /// frontend can distinguish its own write from an external change.
 #[tauri::command]
 pub fn write_text_file(
+    window: tauri::Window,
     state: State<'_, AppState>,
     path: String,
     content: String,
 ) -> AppResult<u64> {
-    let root = state.project.require()?;
+    let ws = state.for_window(window.label());
+    let root = ws.project.require()?;
     let target = paths::resolve_within(&root, Path::new(&path))?;
 
     if let Some(parent) = target.parent() {
@@ -95,10 +102,12 @@ pub fn write_text_file(
 /// few milliseconds and several seconds for a large PDF.
 #[tauri::command]
 pub fn read_binary_file(
+    window: tauri::Window,
     state: State<'_, AppState>,
     path: String,
 ) -> AppResult<tauri::ipc::Response> {
-    let root = state.project.require()?;
+    let ws = state.for_window(window.label());
+    let root = ws.project.require()?;
     let target = paths::resolve_within(&root, Path::new(&path))?;
 
     let bytes = fs::read(&target).map_err(|e| AppError::from_io(&e, &target))?;
@@ -133,11 +142,13 @@ pub fn read_pdf_file(path: String) -> AppResult<tauri::ipc::Response> {
 
 #[tauri::command]
 pub fn create_file(
+    window: tauri::Window,
     state: State<'_, AppState>,
     parent: String,
     name: String,
 ) -> AppResult<FileNode> {
-    let root = state.project.require()?;
+    let ws = state.for_window(window.label());
+    let root = ws.project.require()?;
     paths::validate_file_name(&name)?;
 
     let parent_dir = paths::resolve_within(&root, Path::new(&parent))?;
@@ -154,11 +165,13 @@ pub fn create_file(
 
 #[tauri::command]
 pub fn create_directory(
+    window: tauri::Window,
     state: State<'_, AppState>,
     parent: String,
     name: String,
 ) -> AppResult<FileNode> {
-    let root = state.project.require()?;
+    let ws = state.for_window(window.label());
+    let root = ws.project.require()?;
     paths::validate_file_name(&name)?;
 
     let parent_dir = paths::resolve_within(&root, Path::new(&parent))?;
@@ -175,11 +188,13 @@ pub fn create_directory(
 /// Rename a file or folder in place. Returns the new project-relative path.
 #[tauri::command]
 pub fn rename_entry(
+    window: tauri::Window,
     state: State<'_, AppState>,
     path: String,
     new_name: String,
 ) -> AppResult<String> {
-    let root = state.project.require()?;
+    let ws = state.for_window(window.label());
+    let root = ws.project.require()?;
     paths::validate_file_name(&new_name)?;
 
     let source = paths::resolve_within(&root, Path::new(&path))?;
@@ -210,11 +225,13 @@ pub fn rename_entry(
 /// Move an entry into another folder. Returns the new project-relative path.
 #[tauri::command]
 pub fn move_entry(
+    window: tauri::Window,
     state: State<'_, AppState>,
     path: String,
     destination_parent: String,
 ) -> AppResult<String> {
-    let root = state.project.require()?;
+    let ws = state.for_window(window.label());
+    let root = ws.project.require()?;
 
     let source = paths::resolve_within(&root, Path::new(&path))?;
     let parent = paths::resolve_within(&root, Path::new(&destination_parent))?;
@@ -243,8 +260,13 @@ pub fn move_entry(
 }
 
 #[tauri::command]
-pub fn delete_entry(state: State<'_, AppState>, path: String) -> AppResult<()> {
-    let root = state.project.require()?;
+pub fn delete_entry(
+    window: tauri::Window,
+    state: State<'_, AppState>,
+    path: String,
+) -> AppResult<()> {
+    let ws = state.for_window(window.label());
+    let root = ws.project.require()?;
     let target = paths::resolve_within(&root, Path::new(&path))?;
 
     if target == root {
@@ -270,11 +292,13 @@ pub fn delete_entry(state: State<'_, AppState>, path: String) -> AppResult<()> {
 /// elsewhere on disk); the destination is.
 #[tauri::command]
 pub fn import_file(
+    window: tauri::Window,
     state: State<'_, AppState>,
     source_path: String,
     destination_parent: String,
 ) -> AppResult<FileNode> {
-    let root = state.project.require()?;
+    let ws = state.for_window(window.label());
+    let root = ws.project.require()?;
     let source = Path::new(&source_path);
 
     if !source.is_file() {
@@ -344,8 +368,13 @@ pub fn inspect_paths(paths: Vec<String>) -> Vec<PathKind> {
 }
 
 #[tauri::command]
-pub fn path_exists(state: State<'_, AppState>, path: String) -> AppResult<bool> {
-    let root = state.project.require()?;
+pub fn path_exists(
+    window: tauri::Window,
+    state: State<'_, AppState>,
+    path: String,
+) -> AppResult<bool> {
+    let ws = state.for_window(window.label());
+    let root = ws.project.require()?;
     match paths::resolve_within(&root, Path::new(&path)) {
         Ok(target) => Ok(target.exists()),
         Err(_) => Ok(false),

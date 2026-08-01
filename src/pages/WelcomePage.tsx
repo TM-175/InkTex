@@ -1,9 +1,11 @@
-import { AlertTriangle, Clock, FilePlus2, FolderOpen, Trash2, X } from 'lucide-react';
+import { Clock, FilePlus2, FileText, FolderOpen, Trash2, X } from 'lucide-react';
 import { useProjectStore } from '@/store/projectStore';
 import { useCompileStore } from '@/store/compileStore';
 import { useUiStore } from '@/store/uiStore';
 import { systemApi } from '@/tauri';
 import { Button, IconButton } from '@/components/ui/Button';
+import { Spinner } from '@/components/ui/Feedback';
+import { TexInstallGuide } from '@/components/TexInstallGuide';
 import { shortcutLabel } from '@/services/shortcuts';
 import { formatRelativeTime, truncatePath } from '@/utils/format';
 import { cn } from '@/utils/cn';
@@ -17,11 +19,22 @@ export function WelcomePage() {
   const status = useProjectStore((state) => state.status);
 
   const environment = useCompileStore((state) => state.environment);
-  const probeEnvironment = useCompileStore((state) => state.probeEnvironment);
   const openOverlay = useUiStore((state) => state.openOverlay);
+
+  // Nothing can be opened until a TeX distribution is present.
+  const ready = environment !== null && environment.installed;
 
   const chooseFolder = async (): Promise<void> => {
     const selected = await systemApi.pickDirectory('Open LaTeX Project');
+    if (selected !== null) await openProject(selected);
+  };
+
+  const chooseFile = async (): Promise<void> => {
+    const selected = await systemApi.pickFile(
+      'Open LaTeX File',
+      ['tex', 'ltx', 'latex', 'bib', 'sty', 'cls'],
+      'LaTeX files',
+    );
     if (selected !== null) await openProject(selected);
   };
 
@@ -39,53 +52,49 @@ export function WelcomePage() {
           </div>
         </div>
 
-        {/* Missing toolchain warning */}
-        {environment !== null && !environment.installed && (
-          <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-400" />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-content-primary">
-                No TeX installation was found
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-content-secondary">
-                You can still open and edit projects, but compiling requires a TeX distribution.
-                Install{' '}
-                <span className="font-medium">
-                  {navigator.platform.includes('Mac')
-                    ? 'MacTeX'
-                    : navigator.platform.includes('Win')
-                      ? 'MiKTeX'
-                      : 'TeX Live'}
-                </span>
-                , then re-check.
-              </p>
-              <Button size="sm" variant="secondary" className="mt-2.5" onClick={() => void probeEnvironment()}>
-                Re-check
-              </Button>
-            </div>
+        {/* InkTex drives an existing TeX installation, so without one there is
+            nothing it can do; the guide replaces the actions rather than
+            sitting above them as a dismissible warning. */}
+        {environment !== null && !environment.installed && <TexInstallGuide />}
+
+        {environment === null && (
+          <div className="flex items-center gap-2.5 rounded-lg border border-border-subtle px-4 py-3 text-sm text-content-muted">
+            <Spinner className="size-4" />
+            Looking for your TeX installation…
           </div>
         )}
 
         {/* Actions */}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <ActionCard
-            icon={<FolderOpen className="size-5" />}
-            title="Open Project"
-            description="Open a folder that already contains .tex files."
-            shortcut={shortcutLabel('project.open')}
-            onClick={() => void chooseFolder()}
-            disabled={status === 'opening'}
-          />
-          <ActionCard
-            icon={<FilePlus2 className="size-5" />}
-            title="New Project"
-            description="Start from an article, report, book, résumé, slides or homework template."
-            shortcut={shortcutLabel('project.new')}
-            onClick={() => openOverlay('newProject')}
-          />
-        </div>
+        {ready && (
+          <div className="grid gap-3 sm:grid-cols-3">
+            <ActionCard
+              icon={<FolderOpen className="size-5" />}
+              title="Open Project"
+              description="Open a folder that contains your .tex files."
+              shortcut={shortcutLabel('project.open')}
+              onClick={() => void chooseFolder()}
+              disabled={status === 'opening'}
+            />
+            <ActionCard
+              icon={<FileText className="size-5" />}
+              title="Open File"
+              description="Open a single .tex file. Its folder becomes the project."
+              shortcut={shortcutLabel('file.open')}
+              onClick={() => void chooseFile()}
+              disabled={status === 'opening'}
+            />
+            <ActionCard
+              icon={<FilePlus2 className="size-5" />}
+              title="New Project"
+              description="Start from an article, report, book, résumé, slides or homework template."
+              shortcut={shortcutLabel('project.new')}
+              onClick={() => openOverlay('newProject')}
+            />
+          </div>
+        )}
 
         {/* Recent projects */}
+        {ready && (
         <div>
           <div className="mb-2 flex items-center justify-between">
             <h2 className="flex items-center gap-1.5 text-xs font-semibold tracking-wider text-content-muted uppercase">
@@ -147,6 +156,7 @@ export function WelcomePage() {
             </ul>
           )}
         </div>
+        )}
 
         {/* Footer hint */}
         <p className="text-center text-xs text-content-muted">

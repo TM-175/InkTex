@@ -38,6 +38,8 @@ fn describe(app: &AppHandle, root: &Path) -> AppResult<ProjectInfo> {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| root.to_string_lossy().into_owned()),
         main_document,
+        // Set by `open_project` only when a single file was opened.
+        opened_file: None,
         tree: tree_root,
         file_count,
     })
@@ -48,24 +50,31 @@ fn describe(app: &AppHandle, root: &Path) -> AppResult<ProjectInfo> {
 #[tauri::command]
 pub fn open_project(
     app: AppHandle,
+    window: tauri::Window,
     state: State<'_, AppState>,
     path: String,
     recent_limit: usize,
 ) -> AppResult<ProjectInfo> {
-    let root = PathBuf::from(&path);
+    let ws = state.for_window(window.label());
+    let target = PathBuf::from(&path);
 
-    if !root.exists() {
+    if !target.exists() {
         return Err(
             AppError::invalid_project(format!("“{path}” no longer exists."))
                 .with_hint("It may have been moved or deleted. Remove it from Recent Projects?"),
         );
     }
-    if !root.is_dir() {
-        return Err(
-            AppError::invalid_project("A project must be a folder, not a single file.")
-                .with_hint("Select the folder that contains your .tex files."),
-        );
-    }
+
+    // Opening a single file is supported: its containing folder becomes the
+    // project, and the file itself becomes the document to open and compile.
+    let (root, single_file) = if target.is_dir() {
+        (target, None)
+    } else {
+        let parent = target.parent().map(Path::to_path_buf).ok_or_else(|| {
+            AppError::invalid_project("That file is not inside a folder InkTex can open.")
+        })?;
+        (parent, Some(target))
+    };
 
     // Canonicalise so the same project reached by different paths (symlinks,
     // relative segments) has one identity in recents and in path scoping.
@@ -76,13 +85,19 @@ pub fn open_project(
     // Confirm we can actually read it before committing to the switch.
     fs::read_dir(&root).map_err(|e| AppError::from_io(&e, &root))?;
 
-    let info = describe(&app, &root)?;
+    let mut info = describe(&app, &root)?;
 
-    state.project.set(root.clone());
+    // A file the user picked explicitly outranks the main-document heuristic.
+    if let Some(file) = single_file {
+        info.main_document = Some(paths::relative_to(&root, &file));
+        info.opened_file = info.main_document.clone();
+    }
+
+    ws.project.set(root.clone());
     // A watch failure is not fatal — the project is usable, it just will not
     // auto-refresh — so it is reported to the UI rather than propagated.
-    if let Err(err) = state.watcher.watch(app.clone(), &root) {
-        let _ = tauri::Emitter::emit(&app, "project://watch-error", err.message.clone());
+    if let Err(err) = ws.watcher.watch(app.clone(), window.label(), &root) {
+        let _ = tauri::Emitter::emit_to(&app, window.label(), "project://watch-error", err.message);
     }
 
     store::push_recent(&app, &info.root, &info.name, recent_limit)?;
@@ -94,6 +109,7 @@ pub fn open_project(
 #[tauri::command]
 pub fn create_project(
     app: AppHandle,
+    window: tauri::Window,
     state: State<'_, AppState>,
     parent_directory: String,
     name: String,
@@ -129,6 +145,7 @@ pub fn create_project(
 
     open_project(
         app,
+        window,
         state,
         root.to_string_lossy().into_owned(),
         recent_limit,
@@ -137,16 +154,22 @@ pub fn create_project(
 
 /// Re-read the tree from disk. Called after external filesystem changes.
 #[tauri::command]
-pub fn refresh_tree(state: State<'_, AppState>) -> AppResult<FileNode> {
-    let root = state.project.require()?;
+pub fn refresh_tree(window: tauri::Window, state: State<'_, AppState>) -> AppResult<FileNode> {
+    let ws = state.for_window(window.label());
+    let root = ws.project.require()?;
     let (node, _) = tree::build(&root)?;
     Ok(node)
 }
 
 /// Re-read the whole project description, including the main-document guess.
 #[tauri::command]
-pub fn reload_project(app: AppHandle, state: State<'_, AppState>) -> AppResult<ProjectInfo> {
-    let root = state.project.require()?;
+pub fn reload_project(
+    app: AppHandle,
+    window: tauri::Window,
+    state: State<'_, AppState>,
+) -> AppResult<ProjectInfo> {
+    let ws = state.for_window(window.label());
+    let root = ws.project.require()?;
     describe(&app, &root)
 }
 
@@ -154,10 +177,12 @@ pub fn reload_project(app: AppHandle, state: State<'_, AppState>) -> AppResult<P
 #[tauri::command]
 pub fn set_main_document(
     app: AppHandle,
+    window: tauri::Window,
     state: State<'_, AppState>,
     path: String,
 ) -> AppResult<()> {
-    let root = state.project.require()?;
+    let ws = state.for_window(window.label());
+    let root = ws.project.require()?;
     let target = paths::resolve_within(&root, Path::new(&path))?;
 
     if !target.is_file() {
@@ -172,9 +197,10 @@ pub fn set_main_document(
 }
 
 #[tauri::command]
-pub fn close_project(state: State<'_, AppState>) -> AppResult<()> {
-    state.watcher.stop();
-    state.project.clear();
+pub fn close_project(window: tauri::Window, state: State<'_, AppState>) -> AppResult<()> {
+    let ws = state.for_window(window.label());
+    ws.watcher.stop();
+    ws.project.clear();
     Ok(())
 }
 

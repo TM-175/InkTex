@@ -16,6 +16,16 @@ export function getPlatformInfo(): Promise<PlatformInfo> {
   return call('get_platform_info');
 }
 
+/**
+ * Open another InkTex window.
+ *
+ * Each window is an independent workspace with its own project and compile
+ * slot, so the new one starts at the welcome screen.
+ */
+export function openNewWindow(): Promise<string> {
+  return call('open_new_window');
+}
+
 /** Show a file or folder in Finder/Explorer/the Linux file manager. */
 export function revealInFileManager(path: string): Promise<void> {
   return call('reveal_in_file_manager', { path });
@@ -41,12 +51,13 @@ export async function pickDirectory(title: string): Promise<string | null> {
 export async function pickFile(
   title: string,
   extensions: string[],
+  filterName = 'Supported files',
 ): Promise<string | null> {
   const selected = await openDialog({
     directory: false,
     multiple: false,
     title,
-    filters: extensions.length > 0 ? [{ name: 'Supported files', extensions }] : undefined,
+    filters: extensions.length > 0 ? [{ name: filterName, extensions }] : undefined,
   });
   return typeof selected === 'string' ? selected : null;
 }

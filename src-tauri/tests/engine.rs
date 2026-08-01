@@ -127,7 +127,10 @@ fn request_for(root: &Path, compiler: CompilerKind) -> CompileRequest {
 fn context(id: &str) -> (tauri::App<MockRuntime>, RunContext<MockRuntime>) {
     let app = tauri::test::mock_app();
     let handle = app.handle().clone();
-    (app, RunContext::new(id.to_string(), handle))
+    (
+        app,
+        RunContext::new(id.to_string(), handle, "main".to_string()),
+    )
 }
 
 #[test]

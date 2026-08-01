@@ -20,8 +20,8 @@ export function useCompileEvents(): void {
     );
 
     unlisteners.push(
-      eventsApi.onCompileOutput(({ line }) => {
-        useCompileStore.getState().appendOutput(line);
+      eventsApi.onCompileOutput(({ lines }) => {
+        useCompileStore.getState().appendOutput(lines);
       }),
     );
 

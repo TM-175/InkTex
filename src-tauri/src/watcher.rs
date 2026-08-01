@@ -47,7 +47,7 @@ struct ActiveWatch {
 
 impl WatcherState {
     /// Begin watching `root`, replacing any previous watch.
-    pub fn watch(&self, app: AppHandle, root: &Path) -> AppResult<()> {
+    pub fn watch(&self, app: AppHandle, window_label: &str, root: &Path) -> AppResult<()> {
         // Drop the previous watcher before creating the new one so we never
         // hold two recursive watches on overlapping trees.
         self.stop();
@@ -55,6 +55,8 @@ impl WatcherState {
         let root_owned = root.to_path_buf();
         let emit_root = root.to_path_buf();
         let app_for_events = app.clone();
+        let target = window_label.to_string();
+        let error_target = window_label.to_string();
 
         let mut debouncer =
             new_debouncer(
@@ -103,7 +105,8 @@ impl WatcherState {
                             .iter()
                             .any(|c| !c.is_directory && is_source_like(&c.path));
 
-                        let _ = app_for_events.emit(
+                        let _ = app_for_events.emit_to(
+                            target.as_str(),
                             "project://fs-changed",
                             FsChangeEvent {
                                 root: emit_root.to_string_lossy().into_owned(),
@@ -116,7 +119,11 @@ impl WatcherState {
                         // Watch errors are usually transient (a directory vanished
                         // mid-scan). Surface them without tearing the watch down.
                         for error in errors {
-                            let _ = app.emit("project://watch-error", error.to_string());
+                            let _ = app.emit_to(
+                                error_target.as_str(),
+                                "project://watch-error",
+                                error.to_string(),
+                            );
                         }
                     }
                 },

@@ -29,16 +29,22 @@ pub async fn get_tex_environment() -> AppResult<TexEnvironment> {
 /// rejected with [`ErrorKind::CompileBusy`] rather than queued, so the UI can
 /// tell the user plainly instead of silently stacking work.
 #[tauri::command]
-pub async fn compile_project(app: AppHandle, request: CompileRequest) -> AppResult<CompileResult> {
+pub async fn compile_project(
+    app: AppHandle,
+    window: tauri::Window,
+    request: CompileRequest,
+) -> AppResult<CompileResult> {
+    let label = window.label().to_string();
     let id = format!("compile-{}", engine::epoch_millis());
-    let context = RunContext::new(id.clone(), app.clone());
+    // Events are addressed to the window that asked for the build, so a second
+    // window's log panel does not fill with this one's output.
+    let context = RunContext::new(id.clone(), app.clone(), label.clone());
 
-    {
-        let state = app.state::<AppState>();
-        state.compile.begin(context.clone())?;
-    }
+    let ws = app.state::<AppState>().for_window(&label);
+    ws.compile.begin(context.clone())?;
 
-    let _ = app.emit(
+    let _ = app.emit_to(
+        label.as_str(),
         "compile://started",
         CompileStartedEvent {
             id: id.clone(),
@@ -55,7 +61,7 @@ pub async fn compile_project(app: AppHandle, request: CompileRequest) -> AppResu
 
     // Release the slot no matter how the build ended, including a panic in the
     // worker — otherwise the app would refuse every future compile.
-    app.state::<AppState>().compile.finish();
+    ws.compile.finish();
 
     let result = match outcome {
         Ok(Ok(result)) => result,
@@ -81,30 +87,34 @@ pub async fn compile_project(app: AppHandle, request: CompileRequest) -> AppResu
         }
     };
 
-    let _ = app.emit("compile://finished", &result);
+    let _ = app.emit_to(label.as_str(), "compile://finished", &result);
     Ok(result)
 }
 
 /// Stop the running build. Returns false when nothing was running.
 #[tauri::command]
-pub fn cancel_compile(state: State<'_, AppState>) -> AppResult<bool> {
-    Ok(state.compile.cancel())
+pub fn cancel_compile(window: tauri::Window, state: State<'_, AppState>) -> AppResult<bool> {
+    let ws = state.for_window(window.label());
+    Ok(ws.compile.cancel())
 }
 
 #[tauri::command]
-pub fn is_compiling(state: State<'_, AppState>) -> bool {
-    state.compile.is_running()
+pub fn is_compiling(window: tauri::Window, state: State<'_, AppState>) -> bool {
+    let ws = state.for_window(window.label());
+    ws.compile.is_running()
 }
 
 /// Delete auxiliary build artefacts. Returns the removed project-relative paths.
 #[tauri::command]
 pub fn clean_auxiliary_files(
+    window: tauri::Window,
     state: State<'_, AppState>,
     use_output_directory: bool,
 ) -> AppResult<Vec<String>> {
-    let root = state.project.require()?;
+    let ws = state.for_window(window.label());
+    let root = ws.project.require()?;
 
-    if state.compile.is_running() {
+    if ws.compile.is_running() {
         return Err(AppError::new(
             ErrorKind::CompileBusy,
             "Cannot clean while a compilation is running.",
@@ -118,10 +128,12 @@ pub fn clean_auxiliary_files(
 /// Absolute path of the build directory for the open project.
 #[tauri::command]
 pub fn get_output_directory(
+    window: tauri::Window,
     state: State<'_, AppState>,
     use_output_directory: bool,
 ) -> AppResult<String> {
-    let root = state.project.require()?;
+    let ws = state.for_window(window.label());
+    let root = ws.project.require()?;
     let directory = if use_output_directory {
         root.join(engine::BUILD_DIR)
     } else {

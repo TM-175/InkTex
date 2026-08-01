@@ -6,6 +6,25 @@ They meet at one command list and five event channels.
 
 ---
 
+## Windows are the unit of state
+
+Every piece of mutable backend state — the open project, the compile slot, the
+file watcher — hangs off a `WindowState` keyed by the Tauri window label, not
+off the process (`state.rs`). A second window is a fully independent workspace:
+opening a project in one cannot change what the other is scoped to, and a build
+in one cannot block a build in the other.
+
+Two consequences worth knowing:
+
+- Commands take a `tauri::Window` and resolve their workspace through
+  `AppState::for_window(label)`. That lookup is also the security boundary, since
+  path scoping resolves against *that window's* project root.
+- Events are addressed with `emit_to(label, …)` rather than broadcast, so one
+  window's compile output does not appear in another's log panel.
+
+A `Destroyed` window event tears the state down, stopping the watcher and
+cancelling any build the window left running.
+
 ## The dividing line
 
 The rule the codebase follows is: **the frontend never touches the OS, and the
@@ -67,9 +86,31 @@ Two commands are deliberately outside the scope, and say so: `read_pdf_file`
 `.pdf` files and validates the magic bytes) and `import_file`'s *source*
 argument (it comes from a drag-and-drop elsewhere on disk).
 
+### What gets compiled
+
+The active tab, not a pinned main document — pressing Compile builds what you
+are looking at. `resolveCompileTarget` applies two refinements: a `% !TeX root`
+comment in the open file wins (a chapter that declares its parent builds the
+parent), and a non-`.tex` active tab falls back to the project's main document.
+
+### Compile speed
+
+Three things were making builds slower than the toolchain itself:
+
+1. **Recursive `TEXINPUTS`.** Passing `root//` makes kpathsea walk the whole
+   subtree on every unresolved lookup, with no `ls-R` to consult — thousands of
+   `stat` calls per pass on a project with a large `figures/` or `.git`. The
+   search path is now just the project root; the working directory is already
+   the root, so nested `\input` still resolves.
+2. **One IPC message per output line.** A latexmk run emits thousands of lines,
+   and an event each floods the webview's queue badly enough to stall the UI for
+   the length of the build. Output is now batched (120 lines or 80 ms).
+3. **Auto-compile firing on non-source edits**, already guarded in
+   `useAutoCompile`.
+
 ### Compilation
 
-Only one build runs at a time. `CompileState` holds a single slot; a second
+Only one build runs at a time, per window. `CompileState` holds a single slot; a second
 request is rejected with `ErrorKind::CompileBusy` rather than queued, because
 concurrent `latexmk` runs against one output directory corrupt each other's
 auxiliary files. The slot is released in every exit path, including a panic in

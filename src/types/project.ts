@@ -31,8 +31,13 @@ export interface ProjectInfo {
   /** Absolute path to the project root. */
   root: string;
   name: string;
-  /** Document to compile, relative to the root. */
+  /** Fallback document to compile, relative to the root. */
   mainDocument: string | null;
+  /**
+   * Set when the user opened a single file rather than a folder: the file they
+   * picked, which the UI opens as the active tab.
+   */
+  openedFile: string | null;
   tree: FileNode;
   fileCount: number;
 }

@@ -24,7 +24,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Runtime};
 
 /// Directory used for auxiliary output when the project opts into one.
@@ -78,6 +78,8 @@ const MAX_PASSES: usize = 5;
 pub struct RunContext<R: Runtime = tauri::Wry> {
     pub id: String,
     app: AppHandle<R>,
+    /// Label of the window that started this build; events are addressed to it.
+    window_label: String,
     canceled: Arc<AtomicBool>,
     /// PID of the process currently running, so cancel can signal it.
     current_pid: Arc<Mutex<Option<u32>>>,
@@ -90,6 +92,7 @@ impl<R: Runtime> Clone for RunContext<R> {
         Self {
             id: self.id.clone(),
             app: self.app.clone(),
+            window_label: self.window_label.clone(),
             canceled: Arc::clone(&self.canceled),
             current_pid: Arc::clone(&self.current_pid),
         }
@@ -97,10 +100,11 @@ impl<R: Runtime> Clone for RunContext<R> {
 }
 
 impl<R: Runtime> RunContext<R> {
-    pub fn new(id: String, app: AppHandle<R>) -> Self {
+    pub fn new(id: String, app: AppHandle<R>, window_label: String) -> Self {
         Self {
             id,
             app,
+            window_label,
             canceled: Arc::new(AtomicBool::new(false)),
             current_pid: Arc::new(Mutex::new(None)),
         }
@@ -122,14 +126,24 @@ impl<R: Runtime> RunContext<R> {
         *self.current_pid.lock().expect("pid lock") = pid;
     }
 
-    fn emit_line(&self, line: &str) {
+    /// Send a batch of output lines to the window that started this build.
+    ///
+    /// Output is batched rather than emitted per line: a single latexmk run
+    /// produces thousands of lines, and one IPC message each floods the
+    /// webview's event queue badly enough to stall the UI for the length of
+    /// the build.
+    fn emit_lines(&self, lines: Vec<String>) {
+        if lines.is_empty() {
+            return;
+        }
         // A failed emit means the window is gone; the build will be discarded
         // anyway, so there is nothing useful to do with the error.
-        let _ = self.app.emit(
+        let _ = self.app.emit_to(
+            self.window_label.as_str(),
             "compile://output",
             CompileOutputEvent {
                 id: self.id.clone(),
-                line: line.to_string(),
+                lines,
             },
         );
     }
@@ -191,21 +205,27 @@ fn job_name(main: &Path) -> String {
 /// * `PATH` is the augmented search path (see [`detect::search_path`]).
 /// * `max_print_line` stops the engine hard-wrapping log lines at 79 columns,
 ///   which would otherwise split messages mid-word and defeat the log parser.
-/// * `TEXINPUTS`/`BIBINPUTS` include the project tree recursively so `\input`
-///   and `\bibliography` resolve for nested sources.
+/// * `TEXINPUTS`/`BIBINPUTS` put the project root on the search path.
+///
+/// The input paths are deliberately **not** recursive (`root//`). kpathsea
+/// expands a `//` entry by walking the entire subtree, and it does so for every
+/// unresolved lookup — with no `ls-R` database that means thousands of `stat`
+/// calls per pass on a project with a large `figures/` or `.git` directory, and
+/// it was the single biggest cause of slow builds. The working directory is
+/// already the project root, so `\input{chapters/intro}` resolves without it.
 fn apply_environment(cmd: &mut Command, root: &Path) {
     let root_str = root.to_string_lossy();
     let separator = if cfg!(windows) { ";" } else { ":" };
     // A trailing empty entry means "then the default search path".
-    let recursive = format!("{root_str}{separator}{root_str}//{separator}");
+    let inputs = format!("{root_str}{separator}");
 
     cmd.env("PATH", detect::search_path())
         .env("max_print_line", "10000")
         .env("error_line", "254")
         .env("half_error_line", "238")
-        .env("TEXINPUTS", &recursive)
-        .env("BIBINPUTS", &recursive)
-        .env("BSTINPUTS", &recursive)
+        .env("TEXINPUTS", &inputs)
+        .env("BIBINPUTS", &inputs)
+        .env("BSTINPUTS", &inputs)
         .env("TEXMFOUTPUT", root.as_os_str());
 }
 
@@ -229,8 +249,13 @@ fn spawn_process(cmd: &mut Command) -> std::io::Result<Child> {
     cmd.spawn()
 }
 
-/// Read a pipe line-by-line, forwarding each line to the frontend and
-/// accumulating it into `sink`.
+/// Longest a line may sit in the pending batch before being sent.
+const OUTPUT_FLUSH_INTERVAL: Duration = Duration::from_millis(80);
+/// Batch size that forces a flush regardless of the timer.
+const OUTPUT_FLUSH_LINES: usize = 120;
+
+/// Read a pipe line-by-line, forwarding batches to the frontend and
+/// accumulating everything into `sink`.
 fn pump<Rd: Read + Send + 'static, R: Runtime>(
     reader: Rd,
     context: RunContext<R>,
@@ -240,6 +265,9 @@ fn pump<Rd: Read + Send + 'static, R: Runtime>(
         let mut buffered = BufReader::new(reader);
         let mut raw: Vec<u8> = Vec::with_capacity(256);
 
+        let mut pending: Vec<String> = Vec::with_capacity(OUTPUT_FLUSH_LINES);
+        let mut last_flush = Instant::now();
+
         loop {
             raw.clear();
             // Read bytes rather than a String: TeX logs frequently contain
@@ -248,15 +276,28 @@ fn pump<Rd: Read + Send + 'static, R: Runtime>(
                 Ok(0) | Err(_) => break,
                 Ok(_) => {
                     let line = String::from_utf8_lossy(&raw);
-                    let line = line.trim_end_matches(['\n', '\r']);
-                    context.emit_line(line);
+                    let line = line.trim_end_matches(['\n', '\r']).to_string();
+
                     if let Ok(mut guard) = sink.lock() {
-                        guard.push_str(line);
+                        guard.push_str(&line);
                         guard.push('\n');
+                    }
+                    pending.push(line);
+
+                    // Flush on size or age, whichever comes first: the size cap
+                    // bounds memory on a noisy build, the timer keeps the log
+                    // panel feeling live on a quiet one.
+                    if pending.len() >= OUTPUT_FLUSH_LINES
+                        || last_flush.elapsed() >= OUTPUT_FLUSH_INTERVAL
+                    {
+                        context.emit_lines(std::mem::take(&mut pending));
+                        last_flush = Instant::now();
                     }
                 }
             }
         }
+
+        context.emit_lines(pending);
     })
 }
 

@@ -32,6 +32,14 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(AppState::default())
+        // Release a window's project, watcher and compile slot when it closes,
+        // so a background build cannot outlive the window that started it.
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                use tauri::Manager;
+                window.state::<AppState>().remove_window(window.label());
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             // Project lifecycle
             commands::project::open_project,
@@ -70,6 +78,7 @@ pub fn run() {
             commands::settings::get_session,
             commands::settings::save_session,
             // Desktop integration
+            commands::system::open_new_window,
             commands::system::get_platform_info,
             commands::system::reveal_in_file_manager,
             commands::system::open_terminal,

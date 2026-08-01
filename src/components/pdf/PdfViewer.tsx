@@ -3,6 +3,8 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import {
   ChevronDown,
   ChevronUp,
+  Download,
+  ExternalLink,
   FileWarning,
   Maximize2,
   MoveHorizontal,
@@ -10,8 +12,9 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import { fsApi } from '@/tauri';
+import { fsApi, systemApi } from '@/tauri';
 import { destroyPdfDocument, loadPdfDocument, nextZoomStep } from '@/services/pdfService';
+import { exportPdf } from '@/services/exportService';
 import { useSettingsStore } from '@/store/settingsStore';
 import { toAppError, type AppError } from '@/types/errors';
 import { IconButton } from '@/components/ui/Button';
@@ -308,6 +311,23 @@ export function PdfViewer({ source, version }: PdfViewerProps) {
 
         <div className="ml-auto flex items-center gap-1">
           {loading && <Spinner className="size-3.5 text-content-muted" />}
+
+          <IconButton
+            label="Open in the system PDF viewer"
+            disabled={source === null}
+            onClick={() => {
+              if (source !== null) void systemApi.openExternally(source.path);
+            }}
+          >
+            <ExternalLink className="size-3.5" />
+          </IconButton>
+          <IconButton
+            label="Export PDF…"
+            disabled={source === null}
+            onClick={() => void exportPdf()}
+          >
+            <Download className="size-3.5" />
+          </IconButton>
         </div>
       </div>
 

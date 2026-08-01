@@ -17,8 +17,11 @@ export interface ShortcutDefinition {
 
 export const SHORTCUTS: ShortcutDefinition[] = [
   // File
-  { command: 'project.open', binding: 'mod+o', description: 'Open project…', category: 'File' },
+  { command: 'project.open', binding: 'mod+o', description: 'Open project folder…', category: 'File' },
+  { command: 'file.open', binding: 'mod+shift+o', description: 'Open a single file…', category: 'File' },
   { command: 'project.new', binding: 'mod+shift+n', description: 'New project…', category: 'File' },
+  { command: 'window.new', binding: 'mod+alt+n', description: 'New window', category: 'File' },
+  { command: 'project.close', binding: 'mod+shift+w', description: 'Close project (back to start)', category: 'File' },
   { command: 'file.new', binding: 'mod+n', description: 'New file', category: 'File' },
   { command: 'file.save', binding: 'mod+s', description: 'Save', category: 'File' },
   { command: 'file.saveAll', binding: 'mod+alt+s', description: 'Save all', category: 'File' },

@@ -8,14 +8,14 @@
 
 import { useMemo } from 'react';
 import type { Command } from '@/types/editor';
-import { compileApi, fsApi, systemApi } from '@/tauri';
+import { compileApi, systemApi } from '@/tauri';
 import { useProjectStore } from '@/store/projectStore';
 import { useCompileStore } from '@/store/compileStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { notify, useUiStore } from '@/store/uiStore';
 import { shortcutLabel } from '@/services/shortcuts';
+import { exportActiveSource, exportPdf } from '@/services/exportService';
 import { toAppError } from '@/types/errors';
-import { stem } from '@/utils/path';
 
 /** Prompt for a folder and open it as a project. */
 async function openProjectViaDialog(): Promise<void> {
@@ -25,26 +25,20 @@ async function openProjectViaDialog(): Promise<void> {
   }
 }
 
-/** Copy the compiled PDF somewhere the user chooses. */
-async function exportPdf(): Promise<void> {
-  const { pdfPath } = useCompileStore.getState();
-  const project = useProjectStore.getState().project;
-
-  if (pdfPath === null) {
-    notify.warning('There is no compiled PDF to export', 'Compile the document first.');
-    return;
-  }
-
-  const suggested = `${stem(project?.mainDocument ?? 'document')}.pdf`;
-  const destination = await systemApi.pickSaveLocation('Export PDF', suggested, ['pdf']);
-  if (destination === null) return;
-
-  try {
-    await fsApi.exportPdf(pdfPath, destination);
-    notify.success('PDF exported', destination);
-  } catch (error) {
-    const appError = toAppError(error, 'The PDF could not be exported.');
-    notify.error(appError.message, appError.hint ?? undefined);
+/**
+ * Prompt for a single file and open it.
+ *
+ * The backend treats the file's folder as the project, so the explorer still
+ * shows its siblings and `\input` continues to resolve.
+ */
+async function openFileViaDialog(): Promise<void> {
+  const selected = await systemApi.pickFile(
+    'Open LaTeX File',
+    ['tex', 'ltx', 'latex', 'bib', 'sty', 'cls'],
+    'LaTeX files',
+  );
+  if (selected !== null) {
+    await useProjectStore.getState().openProject(selected);
   }
 }
 
@@ -121,10 +115,35 @@ export function useCommands(): Command[] {
         run: () => ui().openOverlay('newProject'),
       },
       {
+        id: 'file.open',
+        title: 'Open File…',
+        category: 'File',
+        keywords: 'single tex document',
+        ...withShortcut('file.open'),
+        run: openFileViaDialog,
+      },
+      {
+        id: 'window.new',
+        title: 'New Window',
+        category: 'File',
+        keywords: 'second another workspace',
+        ...withShortcut('window.new'),
+        run: async () => {
+          try {
+            await systemApi.openNewWindow();
+          } catch (error) {
+            const appError = toAppError(error, 'A new window could not be opened.');
+            notify.error(appError.message, appError.hint ?? undefined);
+          }
+        },
+      },
+      {
         id: 'project.close',
         title: 'Close Project',
         category: 'File',
+        keywords: 'back home welcome screen',
         enabled: hasProject,
+        ...withShortcut('project.close'),
         run: () => void project().closeProject(),
       },
       {
@@ -234,6 +253,14 @@ export function useCommands(): Command[] {
         enabled: hasPdf,
         ...withShortcut('pdf.export'),
         run: exportPdf,
+      },
+      {
+        id: 'file.exportSource',
+        title: 'Save a Copy of This File…',
+        category: 'File',
+        keywords: 'download export copy tex source',
+        enabled: hasTabs,
+        run: exportActiveSource,
       },
       {
         id: 'pdf.reveal',

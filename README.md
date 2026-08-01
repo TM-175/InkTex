@@ -11,9 +11,12 @@ bundle one, and it never uploads your documents anywhere.
 ## Features
 
 **Projects**
-Open any folder as a project. Create new ones from six templates (article,
-report, book, résumé, Beamer, homework). Recent projects are remembered, and the
-last one reopens on launch with its tabs restored.
+Open any folder as a project, or open a single `.tex` file — its folder becomes
+the project, so `\input` still resolves and the explorer still shows its
+siblings. Create new projects from six templates (article, report, book,
+résumé, Beamer, homework). Recent projects are remembered, and the last one
+reopens on launch with its tabs restored. Open as many windows as you like;
+each is an independent workspace.
 
 **Editor**
 Monaco with a purpose-built LaTeX grammar: syntax highlighting for control
@@ -54,8 +57,11 @@ and a recent-build history.
 | **Node** | 20.19+ (to build from source) |
 | **Rust** | 1.77+ stable (to build from source) |
 
-InkTex runs fine without TeX installed — you can read and edit — but compiling
-needs a distribution. See [docs/INSTALLATION.md](docs/INSTALLATION.md).
+**A TeX distribution is required.** InkTex compiles with the toolchain on your
+machine rather than bundling one, so without it there is nothing to compile
+with. If none is found, the start screen shows step-by-step install
+instructions for your platform and projects cannot be opened until one is.
+See [docs/INSTALLATION.md](docs/INSTALLATION.md).
 
 ---
 
@@ -105,6 +111,9 @@ full list.
 |---|---|
 | `mod+shift+P` | Command palette |
 | `mod+P` | Quick open file |
+| `mod+O` / `mod+shift+O` | Open project folder / single file |
+| `mod+alt+N` | New window |
+| `mod+shift+W` | Close project (back to start screen) |
 | `mod+S` | Save |
 | `mod+Enter` | Compile |
 | `mod+shift+Enter` | Force full recompile |
@@ -122,8 +131,17 @@ Editing shortcuts are Monaco's, so anything you know from VS Code applies —
 
 ## How compilation works
 
-Set a main document (right-click a `.tex` file → **Set as main document**;
-InkTex also guesses, honouring a `% !TeX root =` comment). Then:
+**Compile builds the document you have open.** Whichever `.tex` file is the
+active tab is what gets built — no need to pin anything first. Two refinements:
+
+- A `% !TeX root = …` comment in the open file is an instruction from the
+  document itself, so a chapter that declares its parent builds the parent.
+- When the active tab is not a `.tex` file (a `.bib`, an image, or nothing
+  open), InkTex falls back to the project's main document — the one it guessed,
+  or the one you pinned with right-click → **Set as main document**.
+
+The title bar always shows the path that will be built, beneath the project
+name. Then:
 
 - **latexmk** — InkTex runs `latexmk -pdf|-pdfxe|-pdflua -interaction=nonstopmode
   -file-line-error -outdir=… <main>` and lets latexmk decide how many passes the

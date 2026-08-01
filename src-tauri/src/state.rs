@@ -1,22 +1,28 @@
 //! Process-wide mutable state, managed by Tauri and injected into commands.
+//!
+//! Every piece of state is scoped to a **window**, not to the process. Each
+//! InkTex window is an independent workspace with its own open project, its own
+//! compile slot and its own file watcher, so opening a second project in a new
+//! window cannot change what the first one is pointing at.
 
 use crate::error::{AppError, AppResult, ErrorKind};
 use crate::latex::engine::RunContext;
 use crate::watcher::WatcherState;
+use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
-/// Tracks the single in-flight compilation.
+/// Tracks the single in-flight compilation for one window.
 ///
-/// InkTex deliberately allows only one build at a time: concurrent latexmk runs
-/// against the same output directory corrupt each other's auxiliary files.
+/// InkTex deliberately allows only one build per window: concurrent latexmk
+/// runs against the same output directory corrupt each other's auxiliary files.
 #[derive(Default)]
 pub struct CompileState {
     running: Mutex<Option<RunContext>>,
 }
 
 impl CompileState {
-    /// Claim the compile slot, or report who already holds it.
+    /// Claim the compile slot, or report that it is already held.
     pub fn begin(&self, context: RunContext) -> AppResult<()> {
         let mut guard = self.running.lock().expect("compile lock");
         if guard.is_some() {
@@ -51,7 +57,7 @@ impl CompileState {
     }
 }
 
-/// The project the frontend currently has open.
+/// The project one window currently has open.
 ///
 /// Filesystem commands resolve their paths against this root, which is what
 /// confines them to the project (see [`crate::paths::resolve_within`]).
@@ -82,10 +88,40 @@ impl ProjectState {
     }
 }
 
-/// Aggregate of everything Tauri manages for the app.
+/// Everything one window owns.
 #[derive(Default)]
-pub struct AppState {
+pub struct WindowState {
     pub project: ProjectState,
     pub compile: CompileState,
     pub watcher: WatcherState,
+}
+
+/// The state Tauri manages: one [`WindowState`] per window label.
+#[derive(Default)]
+pub struct AppState {
+    windows: Mutex<HashMap<String, Arc<WindowState>>>,
+}
+
+impl AppState {
+    /// State for `label`, created on first use.
+    pub fn for_window(&self, label: &str) -> Arc<WindowState> {
+        let mut windows = self.windows.lock().expect("windows lock");
+        Arc::clone(windows.entry(label.to_string()).or_default())
+    }
+
+    /// Tear down a window's state when it closes: stop its watcher and cancel
+    /// any build it left running, so neither outlives the window.
+    pub fn remove_window(&self, label: &str) {
+        let removed = self.windows.lock().expect("windows lock").remove(label);
+
+        if let Some(state) = removed {
+            state.watcher.stop();
+            state.compile.cancel();
+        }
+    }
+
+    /// Number of live windows, used to pick the next window label.
+    pub fn window_count(&self) -> usize {
+        self.windows.lock().expect("windows lock").len()
+    }
 }

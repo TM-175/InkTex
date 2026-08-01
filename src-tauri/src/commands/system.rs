@@ -6,6 +6,7 @@ use crate::state::AppState;
 use serde::Serialize;
 use std::path::Path;
 use std::process::Command;
+use tauri::{AppHandle, Manager};
 // Only the Linux code paths need to silence child output.
 #[cfg(target_os = "linux")]
 use std::process::Stdio;
@@ -19,6 +20,44 @@ pub struct PlatformInfo {
     /// Label for the primary modifier key, used in shortcut hints.
     pub modifier_label: String,
     pub tex_search_path: String,
+}
+
+/// Open an additional InkTex window.
+///
+/// Each window is an independent workspace with its own project, compile slot
+/// and file watcher (see [`crate::state::AppState`]), so the new one starts at
+/// the welcome screen rather than mirroring this one.
+#[tauri::command]
+pub async fn open_new_window(app: AppHandle) -> AppResult<String> {
+    // Labels must be unique for the lifetime of the app; a counter would repeat
+    // one after a window is closed and reopened, so use the clock.
+    let label = format!("main-{}", crate::latex::engine::epoch_millis());
+
+    let window =
+        tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::App("index.html".into()))
+            .title("InkTex")
+            .inner_size(1440.0, 900.0)
+            .min_inner_size(900.0, 600.0)
+            .resizable(true)
+            .center()
+            .build()
+            .map_err(|e| {
+                AppError::new(
+                    ErrorKind::Internal,
+                    format!("A new window could not be opened: {e}"),
+                )
+            })?;
+
+    // Offset each new window so it does not land exactly on the previous one.
+    if let Ok(position) = window.outer_position() {
+        let offset = 28 * (app.state::<AppState>().window_count().max(1) as i32);
+        let _ = window.set_position(tauri::PhysicalPosition::new(
+            position.x + offset,
+            position.y + offset,
+        ));
+    }
+
+    Ok(label)
 }
 
 #[tauri::command]
@@ -92,8 +131,8 @@ pub fn reveal_in_file_manager(path: String) -> AppResult<()> {
 
 /// Open a terminal window whose working directory is the project root.
 #[tauri::command]
-pub fn open_terminal(state: State<'_, AppState>) -> AppResult<()> {
-    let root = state.project.require()?;
+pub fn open_terminal(window: tauri::Window, state: State<'_, AppState>) -> AppResult<()> {
+    let root = state.for_window(window.label()).project.require()?;
 
     #[cfg(target_os = "macos")]
     {

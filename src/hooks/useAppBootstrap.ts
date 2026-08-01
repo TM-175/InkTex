@@ -29,13 +29,16 @@ export function useAppBootstrap(): { ready: boolean } {
       const settings = useSettingsStore.getState();
       await settings.load();
 
-      // Probing TeX shells out several times; do not make the UI wait for it.
-      void useCompileStore.getState().probeEnvironment();
+      // Awaited rather than fired off: a project cannot be opened without a TeX
+      // installation, so the answer is needed before deciding whether to
+      // restore the last session. It is fast when nothing is installed.
+      await useCompileStore.getState().probeEnvironment();
 
       const project = useProjectStore.getState();
       await project.loadRecentProjects();
 
-      if (settings.settings.restoreLastProject) {
+      const texInstalled = useCompileStore.getState().environment?.installed === true;
+      if (settings.settings.restoreLastProject && texInstalled) {
         await restoreLastSession();
       }
 

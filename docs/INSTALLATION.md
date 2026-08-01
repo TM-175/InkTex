@@ -8,8 +8,10 @@ InkTex itself.
 ## 1. Install a TeX distribution
 
 InkTex needs `latexmk` plus at least one engine (`pdflatex`, `xelatex` or
-`lualatex`). It will start and let you edit without one, but the Compile button
-stays disabled with an explanation.
+`lualatex`). This is a hard requirement: InkTex drives your existing toolchain
+rather than bundling one, so without it there is nothing to compile with. When
+none is found, the start screen shows these same instructions inline and
+projects cannot be opened until a distribution is present.
 
 ### macOS
 

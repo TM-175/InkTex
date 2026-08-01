@@ -20,13 +20,17 @@ export function useFileWatcher(): void {
           const settings = currentSettings();
           if (!settings.autoCompile) return;
 
-          // Only rebuild when something the PDF depends on actually changed.
-          // An edit made inside InkTex is already handled by useAutoCompile;
-          // this covers changes made by other tools.
-          const relevant = event.changes.some(
-            (change) => !change.isDirectory && affectsOutput(change.path),
+          // Only rebuild for genuinely external changes. Files open in the
+          // editor are already covered by `useAutoCompile`, and InkTex's own
+          // save-before-compile makes the watcher fire for them — reacting to
+          // that would queue a second, redundant build after every compile.
+          const openPaths = new Set(useProjectStore.getState().tabs.map((tab) => tab.path));
+
+          const external = event.changes.some(
+            (change) =>
+              !change.isDirectory && affectsOutput(change.path) && !openPaths.has(change.path),
           );
-          if (relevant) {
+          if (external) {
             void useCompileStore.getState().compile({ silent: true });
           }
         });

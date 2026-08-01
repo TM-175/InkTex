@@ -1,6 +1,9 @@
 import {
   ChevronDown,
+  ChevronLeft,
   Columns2,
+  Copy,
+  Download,
   FolderOpen,
   Hammer,
   PanelBottom,
@@ -13,7 +16,8 @@ import { useProjectStore } from '@/store/projectStore';
 import { useCompileStore } from '@/store/compileStore';
 import { useUiStore } from '@/store/uiStore';
 import { useSettingsStore } from '@/store/settingsStore';
-import { compileBlocker } from '@/services/compileService';
+import { compileBlocker, resolveCompileTarget } from '@/services/compileService';
+import { exportActiveSource, exportPdf } from '@/services/exportService';
 import { IS_MAC, shortcutLabel } from '@/services/shortcuts';
 import { Button, IconButton } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Feedback';
@@ -41,9 +45,17 @@ export function TitleBar() {
   const settings = useSettingsStore((state) => state.settings);
   const updateSettings = useSettingsStore((state) => state.update);
 
+  const tabs = useProjectStore((state) => state.tabs);
+  const activePath = useProjectStore((state) => state.activePath);
+  const closeProject = useProjectStore((state) => state.closeProject);
+
   const ui = useUiStore();
 
-  const blocker = compileBlocker(environment, settings, project?.mainDocument ?? null);
+  // Compile builds the document the user is looking at, so the button's label
+  // and enabled state track the active tab rather than a pinned main document.
+  const hasPdf = useCompileStore((state) => state.pdfPath !== null);
+  const compileTarget = resolveCompileTarget(project, tabs, activePath);
+  const blocker = compileBlocker(environment, settings, compileTarget);
   const running = phase !== 'idle';
 
   return (
@@ -59,7 +71,14 @@ export function TitleBar() {
       )}
     >
       {/* Project */}
-      <div className="flex min-w-0 items-center gap-2" data-tauri-drag-region>
+      <div className="flex min-w-0 items-center gap-1.5" data-tauri-drag-region>
+        <IconButton
+          label={`Close project and return to the start screen (${shortcutLabel('project.close') ?? ''})`}
+          onClick={() => void closeProject()}
+        >
+          <ChevronLeft className="size-4" />
+        </IconButton>
+
         {project === null ? (
           <span className="text-sm text-content-muted">No project open</span>
         ) : (
@@ -69,9 +88,13 @@ export function TitleBar() {
               <div className="truncate text-sm leading-tight font-medium text-content-primary">
                 {project.name}
               </div>
-              {project.mainDocument !== null && (
-                <div className="truncate text-[0.6875rem] leading-tight text-content-muted">
-                  {project.mainDocument}
+              {/* What Compile will actually build, which follows the active tab. */}
+              {compileTarget !== null && (
+                <div
+                  className="truncate text-[0.6875rem] leading-tight text-content-muted"
+                  title={`Compile builds ${compileTarget}`}
+                >
+                  {compileTarget}
                 </div>
               )}
             </div>
@@ -160,6 +183,23 @@ export function TitleBar() {
           onClick={ui.toggleBottomPanel}
         >
           <PanelBottom className="size-4" />
+        </IconButton>
+
+        <div className="mx-1 h-4 w-px bg-border-subtle" />
+
+        <IconButton
+          label={`Export PDF… (${shortcutLabel('pdf.export') ?? ''})`}
+          disabled={!hasPdf}
+          onClick={() => void exportPdf()}
+        >
+          <Download className="size-4" />
+        </IconButton>
+        <IconButton
+          label="Save a copy of this file…"
+          disabled={activePath === null}
+          onClick={() => void exportActiveSource()}
+        >
+          <Copy className="size-4" />
         </IconButton>
 
         <div className="mx-1 h-4 w-px bg-border-subtle" />

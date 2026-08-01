@@ -63,7 +63,8 @@ export interface CompileStartedEvent {
 
 export interface CompileOutputEvent {
   id: string;
-  line: string;
+  /** A batch of lines, not one — see `RunContext::emit_lines` in the backend. */
+  lines: string[];
 }
 
 export interface TexBinary {

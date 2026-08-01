@@ -12,8 +12,74 @@ import type {
   TexEnvironment,
 } from '@/types/compile';
 import type { Settings } from '@/types/settings';
+import type { EditorTab } from '@/types/editor';
+import type { ProjectInfo } from '@/types/project';
 import { parseShellArgs } from '@/utils/shellArgs';
 import { formatDuration, pluralize } from '@/utils/format';
+import { dirname, extname, join } from '@/utils/path';
+
+/** Extensions that can be handed to a TeX engine directly. */
+const COMPILABLE = new Set(['tex', 'ltx', 'latex']);
+
+/**
+ * Read a `% !TeX root = …` magic comment from the head of a document.
+ *
+ * Returns the declared root as a project-relative path, resolved against the
+ * declaring file's folder.
+ */
+export function parseTexRoot(content: string, filePath: string): string | null {
+  // The comment is a preamble convention; only the first lines matter.
+  for (const line of content.split('\n', 20)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('%')) continue;
+
+    const match = /!\s*tex\s+root\s*[=:]\s*(.+)$/i.exec(trimmed);
+    if (match === null) continue;
+
+    const declared = match[1]?.trim();
+    if (declared === undefined || declared === '') continue;
+
+    // Resolve relative to the file that declares it, then collapse `..`.
+    const segments = join(dirname(filePath), declared).split('/');
+    const resolved: string[] = [];
+
+    for (const segment of segments) {
+      if (segment === '' || segment === '.') continue;
+      if (segment === '..') resolved.pop();
+      else resolved.push(segment);
+    }
+    return resolved.join('/');
+  }
+  return null;
+}
+
+/**
+ * Decide which document a compile should build.
+ *
+ * The document the user is looking at wins — that is what "Compile" means when
+ * you press it. Two refinements:
+ *
+ * 1. A `% !TeX root` comment in that file is an explicit instruction from the
+ *    document itself, so a chapter that declares its parent builds the parent.
+ * 2. When the active tab is not a `.tex` file (a `.bib`, an image, or nothing
+ *    open at all), fall back to the project's main document.
+ */
+export function resolveCompileTarget(
+  project: ProjectInfo | null,
+  tabs: readonly EditorTab[],
+  activePath: string | null,
+): string | null {
+  if (project === null) return null;
+
+  const active = tabs.find((tab) => tab.path === activePath) ?? null;
+
+  if (active !== null && COMPILABLE.has(extname(active.path))) {
+    const declaredRoot = parseTexRoot(active.content, active.path);
+    return declaredRoot ?? active.path;
+  }
+
+  return project.mainDocument;
+}
 
 /** Build a {@link CompileRequest} from the current project and settings. */
 export function buildRequest(
@@ -44,10 +110,10 @@ export function buildRequest(
 export function compileBlocker(
   environment: TexEnvironment | null,
   settings: Settings,
-  mainDocument: string | null,
+  target: string | null,
 ): string | null {
-  if (mainDocument === null) {
-    return 'No main document is set. Right-click a .tex file and choose “Set as main document”.';
+  if (target === null) {
+    return 'Open a .tex file to compile it.';
   }
   if (environment === null) return null; // Still probing; let the attempt proceed.
 
