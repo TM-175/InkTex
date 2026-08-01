@@ -13,6 +13,7 @@
 //! | `project://fs-changed`  | `FsChangeEvent`        | Debounced filesystem changes     |
 //! | `project://watch-error` | `String`               | The watcher could not be started |
 
+pub mod code;
 pub mod commands;
 pub mod error;
 pub mod latex;
@@ -77,6 +78,12 @@ pub fn run() {
             commands::settings::save_settings,
             commands::settings::get_session,
             commands::settings::save_session,
+            // Code listings
+            commands::code::index_code_assets,
+            commands::code::index_code_paths,
+            commands::code::detect_code_regions,
+            commands::code::import_code,
+            commands::code::check_source_links,
             // Desktop integration
             commands::system::open_new_window,
             commands::system::get_platform_info,

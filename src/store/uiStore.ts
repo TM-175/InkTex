@@ -7,9 +7,16 @@
 
 import { create } from 'zustand';
 import type { BottomPanelTab, Toast } from '@/types/editor';
+import type { CodeAsset, ListingSpec } from '@/types/listing';
+
+/** Which browser the left sidebar shows. */
+export type SidebarView = 'files' | 'code';
 
 /** Overlays that can be open; only one at a time. */
 export type OverlayKind =
+  | 'codeBlock'
+  | 'codeImport'
+  | 'listingSearch'
   | 'commandPalette'
   | 'quickOpen'
   | 'settings'
@@ -30,9 +37,17 @@ interface UiState {
   /** Bottom panel height in pixels. */
   bottomPanelHeight: number;
   bottomTab: BottomPanelTab;
+  /** Which browser the left sidebar shows. */
+  sidebarView: SidebarView;
+  /** The listing inspector is docked beside the editor when open. */
+  inspectorOpen: boolean;
 
   // --- Overlays -----------------------------------------------------------
   overlay: OverlayKind;
+  /** Pre-filled fields for the code-block wizard, set by whatever opened it. */
+  codeBlockSeed: Partial<ListingSpec> | null;
+  /** The asset the import dialog is working on. */
+  importTarget: CodeAsset | null;
 
   // --- Toasts -------------------------------------------------------------
   toasts: Toast[];
@@ -51,6 +66,12 @@ interface UiState {
 
   openOverlay: (overlay: Exclude<OverlayKind, null>) => void;
   closeOverlay: () => void;
+  /** Open the code-block wizard, optionally pre-filled. */
+  openCodeBlock: (seed?: Partial<ListingSpec>) => void;
+  /** Open the import dialog for one source file. */
+  openCodeImport: (asset: CodeAsset) => void;
+  setSidebarView: (view: SidebarView) => void;
+  toggleInspector: () => void;
 
   pushToast: (toast: Omit<Toast, 'id'>) => string;
   dismissToast: (id: string) => void;
@@ -94,8 +115,12 @@ export const useUiStore = create<UiState>((set, get) => ({
   previewFraction: 0.5,
   bottomPanelHeight: 220,
   bottomTab: 'problems',
+  sidebarView: 'files',
+  inspectorOpen: false,
 
   overlay: null,
+  codeBlockSeed: null,
+  importTarget: null,
   toasts: [],
   confirmRequest: null,
 
@@ -115,6 +140,12 @@ export const useUiStore = create<UiState>((set, get) => ({
 
   openOverlay: (overlay) => set({ overlay }),
   closeOverlay: () => set({ overlay: null }),
+
+  openCodeBlock: (seed) => set({ overlay: 'codeBlock', codeBlockSeed: seed ?? null }),
+  openCodeImport: (asset) => set({ overlay: 'codeImport', importTarget: asset }),
+
+  setSidebarView: (sidebarView) => set({ sidebarView, explorerVisible: true }),
+  toggleInspector: () => set((state) => ({ inspectorOpen: !state.inspectorOpen })),
 
   pushToast: (toast) => {
     toastCounter += 1;

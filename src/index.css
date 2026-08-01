@@ -244,3 +244,20 @@
     }
   }
 }
+
+@layer components {
+  /*
+   * Highlighted lines inside an embedded code listing editor. The gutter mark
+   * makes the clickable line-number affordance discoverable, since clicking a
+   * line number is how highlighting is toggled.
+   */
+  .inktex-listing-highlight {
+    background-color: rgb(250 204 21 / 0.16);
+  }
+
+  .inktex-listing-highlight-gutter {
+    background-color: rgb(250 204 21 / 0.85);
+    width: 3px !important;
+    margin-left: 3px;
+  }
+}

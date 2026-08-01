@@ -4,6 +4,7 @@ import { useCompileStore } from '@/store/compileStore';
 import { useProjectStore } from '@/store/projectStore';
 import { useUiStore } from '@/store/uiStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { staleListingCount, useCodeStore } from '@/store/codeStore';
 import { statusColor, summarize } from '@/services/compileService';
 import { isTabDirty } from '@/types/editor';
 import { formatDuration } from '@/utils/format';
@@ -19,6 +20,14 @@ export function StatusBar() {
   const activePath = useProjectStore((state) => state.activePath);
   const showBottomTab = useUiStore((state) => state.showBottomTab);
   const settings = useSettingsStore((state) => state.settings);
+
+  const listings = useCodeStore((state) => state.listings);
+  const staleCount = staleListingCount(listings);
+  const toggleInspector = useUiStore((state) => state.toggleInspector);
+  const inspectorOpen = useUiStore((state) => state.inspectorOpen);
+  const openInspector = (): void => {
+    if (!inspectorOpen) toggleInspector();
+  };
 
   const activeTab = tabs.find((tab) => tab.path === activePath) ?? null;
   const dirtyCount = tabs.filter(isTabDirty).length;
@@ -83,6 +92,19 @@ export function StatusBar() {
       )}
 
       <div className="ml-auto flex items-center gap-3">
+        {/* Listings whose source file has drifted since import. */}
+        {staleCount > 0 && (
+          <button
+            type="button"
+            onClick={openInspector}
+            title="Open the listing inspector to refresh or unlink them"
+            className="flex items-center gap-1 rounded px-1 text-amber-400 transition-colors hover:bg-surface-hover"
+          >
+            <AlertTriangle className="size-3" />
+            {staleCount} listing{staleCount === 1 ? '' : 's'} out of date
+          </button>
+        )}
+
         {/* Missing toolchain is worth surfacing permanently. */}
         {environment !== null && !environment.installed && (
           <span className="flex items-center gap-1 text-amber-400">

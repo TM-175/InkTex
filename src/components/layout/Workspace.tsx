@@ -1,7 +1,8 @@
 import { lazy, Suspense, useCallback, useRef } from 'react';
 import { useUiStore } from '@/store/uiStore';
 import { useResizable } from '@/hooks/useResizable';
-import { FileExplorer } from '@/components/explorer/FileExplorer';
+import { SidebarSwitcher } from './SidebarSwitcher';
+import { ListingInspector } from '@/components/code/ListingInspector';
 import { EditorPane } from '@/components/editor/EditorPane';
 import { BottomPanel } from '@/components/panels/BottomPanel';
 import { Spinner } from '@/components/ui/Feedback';
@@ -27,6 +28,7 @@ export function Workspace() {
   const explorerWidth = useUiStore((state) => state.explorerWidth);
   const previewFraction = useUiStore((state) => state.previewFraction);
   const bottomPanelHeight = useUiStore((state) => state.bottomPanelHeight);
+  const inspectorOpen = useUiStore((state) => state.inspectorOpen);
   const setExplorerWidth = useUiStore((state) => state.setExplorerWidth);
   const setPreviewFraction = useUiStore((state) => state.setPreviewFraction);
   const setBottomPanelHeight = useUiStore((state) => state.setBottomPanelHeight);
@@ -72,7 +74,7 @@ export function Workspace() {
             style={{ width: explorerWidth }}
             className="min-w-0 shrink-0 overflow-hidden"
           >
-            <FileExplorer />
+            <SidebarSwitcher />
           </aside>
           <div
             role="separator"
@@ -89,6 +91,12 @@ export function Workspace() {
           <div className="min-w-0 flex-1">
             <EditorPane />
           </div>
+
+          {inspectorOpen && (
+            <div className="w-80 min-w-0 shrink-0">
+              <ListingInspector />
+            </div>
+          )}
 
           {previewVisible && (
             <>

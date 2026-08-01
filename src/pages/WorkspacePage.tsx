@@ -1,4 +1,4 @@
-import { useAutoCompile, useAutoSave, useFileWatcher } from '@/hooks';
+import { useAutoCompile, useAutoSave, useCodeListings, useFileWatcher } from '@/hooks';
 import { TitleBar } from '@/components/layout/TitleBar';
 import { StatusBar } from '@/components/layout/StatusBar';
 import { Workspace } from '@/components/layout/Workspace';
@@ -13,6 +13,7 @@ export function WorkspacePage() {
   useAutoSave();
   useAutoCompile();
   useFileWatcher();
+  useCodeListings();
 
   return (
     <div className="flex h-full min-h-0 flex-col">

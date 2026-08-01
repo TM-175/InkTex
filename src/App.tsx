@@ -15,6 +15,9 @@ import { QuickOpen } from '@/components/dialogs/QuickOpen';
 import { SettingsDialog } from '@/components/dialogs/SettingsDialog';
 import { ShortcutsDialog } from '@/components/dialogs/ShortcutsDialog';
 import { SnippetPicker } from '@/components/dialogs/SnippetPicker';
+import { CodeBlockWizard } from '@/components/code/CodeBlockWizard';
+import { CodeImportDialog } from '@/components/code/CodeImportDialog';
+import { ListingSearchDialog } from '@/components/code/ListingSearchDialog';
 import { Spinner, Toaster } from '@/components/ui/Feedback';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
@@ -55,6 +58,9 @@ export default function App() {
         <NewProjectDialog />
         <ShortcutsDialog />
         <SnippetPicker />
+        <CodeBlockWizard />
+        <CodeImportDialog />
+        <ListingSearchDialog />
         <ConfirmDialog />
         <Toaster />
       </div>

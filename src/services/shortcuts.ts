@@ -41,6 +41,11 @@ export const SHORTCUTS: ShortcutDefinition[] = [
   { command: 'editor.comment', binding: 'mod+/', description: 'Toggle line comment', category: 'Edit' },
   { command: 'snippets.open', binding: 'mod+shift+i', description: 'Insert snippet…', category: 'Edit' },
 
+  // Code
+  { command: 'code.insertBlock', binding: 'mod+shift+c', description: 'Insert code block…', category: 'Edit' },
+  { command: 'code.insertFromFile', binding: 'mod+alt+c', description: 'Insert code from file…', category: 'Edit' },
+  { command: 'code.inspector', binding: 'mod+alt+i', description: 'Toggle listing inspector', category: 'View' },
+
   // View
   { command: 'view.explorer', binding: 'mod+b', description: 'Toggle file explorer', category: 'View' },
   { command: 'view.preview', binding: 'mod+shift+v', description: 'Toggle PDF preview', category: 'View' },
@@ -84,7 +89,6 @@ export function shortcutLabel(command: string): string | undefined {
   return binding === undefined ? undefined : formatBinding(binding);
 }
 
-/** Normalise a KeyboardEvent's key name to the vocabulary used in bindings. */
 /** Physical keys whose `code` is not simply `Key<X>` or `Digit<N>`. */
 const CODE_NAMES: Record<string, string> = {
   Comma: ',',

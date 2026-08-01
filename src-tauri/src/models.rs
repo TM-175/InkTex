@@ -281,3 +281,94 @@ pub struct FsChangeEvent {
     /// True when the change set touches files the editor may have open.
     pub affects_sources: bool,
 }
+
+// ---------------------------------------------------------------------------
+// Code listings
+// ---------------------------------------------------------------------------
+
+/// One indexable source file in the project.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodeAsset {
+    /// Project-relative path, forward-slashed.
+    pub path: String,
+    pub name: String,
+    /// Lowercase extension without the dot; empty for files like `Makefile`.
+    pub extension: String,
+    pub size: u64,
+    /// Line count, or `0` when `truncated` is set.
+    pub lines: usize,
+    /// The file was too large to scan, so `lines` is not meaningful.
+    pub truncated: bool,
+    pub modified: u64,
+}
+
+/// A named region found inside a source file.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodeRegion {
+    pub name: String,
+    /// 1-based, and excludes the marker lines themselves.
+    pub first_line: usize,
+    pub last_line: usize,
+    pub line_count: usize,
+    /// Nesting level; 0 is top level.
+    pub depth: usize,
+}
+
+/// How much of a source file a listing draws from.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ImportMode {
+    Whole,
+    Range,
+    Region,
+}
+
+/// The result of extracting a snippet.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportedCode {
+    pub content: String,
+    /// Fingerprint of `content`, used to detect later drift.
+    pub hash: String,
+    pub first_line: usize,
+    pub last_line: usize,
+    /// Lines in the whole file, for the range picker's bounds.
+    pub total_lines: usize,
+    /// Regions available in the file, so the UI can offer region import.
+    pub region_count: usize,
+}
+
+/// A listing's link to the file it came from, as stored in the `.tex` comment.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceLinkQuery {
+    pub path: String,
+    pub mode: ImportMode,
+    pub first_line: Option<usize>,
+    pub last_line: Option<usize>,
+    pub region: Option<String>,
+    /// Fingerprint recorded when the listing was last imported or refreshed.
+    pub hash: String,
+    pub dedent: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum SourceLinkStatus {
+    UpToDate,
+    Changed,
+    FileMissing,
+    RegionMissing,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceLinkResult {
+    pub status: SourceLinkStatus,
+    /// Current fingerprint, when the source could be read.
+    pub hash: Option<String>,
+    pub first_line: Option<usize>,
+    pub last_line: Option<usize>,
+}

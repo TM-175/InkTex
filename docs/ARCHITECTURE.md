@@ -61,6 +61,11 @@ latex/
   engine.rs       Runs it; streams output; cancels it.
   log_parser.rs   Turns TeX logs into structured diagnostics.
 
+code/
+  indexer.rs      Indexes project source files for the Code Assets browser.
+  regions.rs      Finds `// region NAME` markers across comment syntaxes.
+  import.rs       Extracts a snippet; fingerprints it to detect later drift.
+
 tree.rs           Builds the project tree; guesses the main document.
 watcher.rs        Debounced filesystem watching.
 store.rs          Preferences, recent projects, session, per-project overrides.
@@ -169,6 +174,9 @@ types/       Mirrors of the Rust models, plus frontend-only types.
 
 services/    Business logic, no React. Templates, snippets, the LaTeX Monaco
              grammar, log/diagnostic shaping, settings schema, fuzzy matching.
+  listings/  The code-listing pipeline: language registry, themes, LaTeX
+             generator and parser, preamble manager, language detection,
+             and the mutations in `listingActions.ts`.
 
 store/       Zustand stores: settings, project (+ tabs), compile, UI shell.
 
@@ -244,6 +252,48 @@ either is needed.
 
 ---
 
+## Code listings
+
+The subsystem is split so no part knows more than it must:
+
+| Module | Responsibility |
+|---|---|
+| `code/indexer.rs` | Which source files exist, and how big they are |
+| `code/regions.rs` | Where the named regions are |
+| `code/import.rs` | Extracting a snippet and fingerprinting it |
+| `listings/languages.ts` | What a language *is* — the single registry |
+| `listings/themes.ts` | Colour, for preview and for both engines |
+| `listings/latexGenerator.ts` | Spec → LaTeX |
+| `listings/latexParser.ts` | LaTeX → spec |
+| `listings/preamble.ts` | What the document is missing |
+| `listings/listingActions.ts` | Every mutation, in one place |
+| `codeStore.ts` | The index, the parsed listings, their link status |
+
+The backend is deliberately **language-agnostic**: it receives an extension
+whitelist from the frontend registry and never learns what Rust is. That keeps
+one definition of a language rather than two that drift.
+
+### Why a comment, not a database
+
+Link metadata lives in a single `% inktex-listing:` comment above the
+environment. The alternatives were a sidecar file (breaks the moment the
+document is copied, emailed, or edited elsewhere) or a proprietary block
+(defeats the purpose of writing LaTeX). A comment travels with the document,
+survives any editor, and can be deleted with no consequence beyond losing the
+link.
+
+This is also why the parser must handle listings it did not write. A listing
+typed by hand is not a second-class citizen: it parses into the same spec, is
+editable in the inspector, and regenerating it preserves options the parser did
+not recognise.
+
+### Round-trip fidelity
+
+The generator and parser are inverses, pinned by tests. What that buys: editing
+a caption in the inspector cannot silently drop an `escapeinside=||` the user
+added by hand, and a document can be round-tripped through the visual tools
+without accumulating damage.
+
 ## Design decisions worth explaining
 
 ### Settings are an opaque blob
@@ -313,6 +363,11 @@ cargo test --manifest-path src-tauri/Cargo.toml
 inspection: path containment and traversal, log parsing across the formats TeX
 actually emits, compiler argument assembly, main-document detection, and the
 watcher's ignore rules.
+
+**Frontend tests** (`npm test`, Vitest) cover the listing pipeline: line-range
+collapsing, LaTeX generation for both engines, parser round-trips, parsing
+hand-written listings, preservation of unknown options, language detection, and
+preamble idempotency.
 
 **4 integration tests** (`src-tauri/tests/engine.rs`) drive the compile engine
 against a stub `latexmk` shell script, so they run on a machine with no TeX

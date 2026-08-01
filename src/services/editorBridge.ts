@@ -71,6 +71,51 @@ export function insertText(text: string): void {
   ]);
 }
 
+/**
+ * Replace a character range in the active model.
+ *
+ * Goes through Monaco's edit API rather than rewriting the buffer, so
+ * regenerating a listing after a property change is one undoable step and the
+ * user's cursor and scroll position survive it.
+ *
+ * Returns false when there is no editor, or the range is out of bounds.
+ */
+export function replaceRange(startOffset: number, endOffset: number, text: string): boolean {
+  if (editor === null) return false;
+
+  const model = editor.getModel();
+  if (model === null) return false;
+
+  const length = model.getValueLength();
+  if (startOffset < 0 || endOffset > length || startOffset > endOffset) return false;
+
+  const start = model.getPositionAt(startOffset);
+  const end = model.getPositionAt(endOffset);
+
+  editor.executeEdits('inktex-listing', [
+    {
+      range: {
+        startLineNumber: start.lineNumber,
+        startColumn: start.column,
+        endLineNumber: end.lineNumber,
+        endColumn: end.column,
+      },
+      text,
+      forceMoveMarkers: true,
+    },
+  ]);
+  return true;
+}
+
+/** Character offset of the cursor, or null when there is no editor. */
+export function cursorOffset(): number | null {
+  const model = editor?.getModel();
+  const position = editor?.getPosition();
+  if (model == null || position == null) return null;
+
+  return model.getOffsetAt(position);
+}
+
 /** Scroll to a 1-based line/column and place the cursor there. */
 export function revealLocation(line: number, column = 1): void {
   if (editor === null || monacoApi === null) return;

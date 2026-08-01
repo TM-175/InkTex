@@ -5,6 +5,7 @@
  * `projectApi.openProject(...)` rather than a flat soup of free functions.
  */
 
+export * as codeApi from './code';
 export * as compileApi from './compile';
 export * as eventsApi from './events';
 export * as fsApi from './fs';

@@ -15,6 +15,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { notify, useUiStore } from '@/store/uiStore';
 import { shortcutLabel } from '@/services/shortcuts';
 import { exportActiveSource, exportPdf } from '@/services/exportService';
+import { useCodeStore } from '@/store/codeStore';
 import { toAppError } from '@/types/errors';
 
 /** Prompt for a folder and open it as a project. */
@@ -353,6 +354,60 @@ export function useCommands(): Command[] {
         keywords: 'preferences options configure',
         ...withShortcut('settings.open'),
         run: () => ui().openOverlay('settings'),
+      },
+      {
+        id: 'code.insertBlock',
+        title: 'Insert Code Block…',
+        category: 'Code',
+        keywords: 'listing minted listings source program snippet',
+        enabled: hasTabs,
+        ...withShortcut('code.insertBlock'),
+        run: () => ui().openCodeBlock(),
+      },
+      {
+        id: 'code.insertFromFile',
+        title: 'Insert Code From File…',
+        category: 'Code',
+        keywords: 'listing import source region line range',
+        enabled: hasProject,
+        ...withShortcut('code.insertFromFile'),
+        run: () => {
+          // Route through the asset browser so the user picks a file the
+          // indexer already knows about, with its regions and line counts.
+          ui().setSidebarView('code');
+          notify.info('Pick a source file', 'Choose a file in Code Assets, then Insert into Document.');
+        },
+      },
+      {
+        id: 'code.assets',
+        title: 'Show Code Assets',
+        category: 'Code',
+        keywords: 'browser source files index',
+        enabled: hasProject,
+        run: () => ui().setSidebarView('code'),
+      },
+      {
+        id: 'code.inspector',
+        title: 'Toggle Listing Inspector',
+        category: 'Code',
+        keywords: 'properties listing edit caption label theme',
+        ...withShortcut('code.inspector'),
+        run: () => ui().toggleInspector(),
+      },
+      {
+        id: 'code.search',
+        title: 'Search Code Listings…',
+        category: 'Code',
+        keywords: 'find listing caption language label source',
+        enabled: hasProject,
+        run: () => ui().openOverlay('listingSearch'),
+      },
+      {
+        id: 'code.reindex',
+        title: 'Re-index Source Files',
+        category: 'Code',
+        enabled: hasProject,
+        run: () => void useCodeStore.getState().indexAssets(),
       },
       {
         id: 'snippets.open',

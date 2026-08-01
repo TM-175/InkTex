@@ -40,6 +40,16 @@ jumps to the exact source line. Terse TeX phrasing is rewritten into something
 actionable — a missing `tikz.sty` becomes "Missing package *tikz*. Install it
 with `tlmgr install tikz`."
 
+**Code listings**
+Source code as a first-class element. A wizard with an embedded editor, an
+indexed browser of the project's source files, import of a whole file, a line
+range or a named region, listings that stay linked to their source and report
+when it drifts, click-to-highlight line numbers, nine themes with live preview,
+and automatic language detection on paste. Both `minted` and `listings` are
+fully supported — including generated language and theme definitions for the
+many languages `listings` lacks. Everything it writes is ordinary, editable
+LaTeX. See [docs/CODE-LISTINGS.md](docs/CODE-LISTINGS.md).
+
 **Quality of life**
 Command palette (`⌘⇧P`), fuzzy file open (`⌘P`), snippet picker, keyboard
 reference, drag-and-drop to open a project or import an image, auxiliary-file
@@ -95,10 +105,12 @@ Windows, `.deb`/`.AppImage` on Linux.
 | `npm run rust:check` | `cargo check` on the backend |
 | `npm run rust:clippy` | Lint the backend, warnings as errors |
 | `npm run rust:fmt` | Format the Rust sources |
+| `npm test` | Frontend unit tests (Vitest) |
 
-Backend tests: `cargo test --manifest-path src-tauri/Cargo.toml` — 30 unit
+Backend tests: `cargo test --manifest-path src-tauri/Cargo.toml` — 48 unit
 tests plus 4 integration tests that drive the compile engine against a stub
-toolchain, so they pass with no TeX installed.
+toolchain, so they pass with no TeX installed. Frontend tests (`npm test`)
+cover the listing generator, parser, language detection and preamble manager.
 
 ---
 
@@ -121,6 +133,9 @@ full list.
 | `mod+shift+V` | Toggle PDF preview |
 | `mod+J` | Toggle bottom panel |
 | `mod+shift+I` | Insert snippet |
+| `mod+shift+C` | Insert code block |
+| `mod+alt+C` | Insert code from file |
+| `mod+alt+I` | Toggle listing inspector |
 | `mod+E` | Export PDF |
 | `mod+,` | Settings |
 
@@ -189,6 +204,7 @@ InkTex writes nothing into your project except the build directory.
 
 - [Installation guide](docs/INSTALLATION.md) — installing TeX, building from
   source, troubleshooting
+- [Code listings](docs/CODE-LISTINGS.md) — the listings system in full
 - [Architecture](docs/ARCHITECTURE.md) — how the code is organised and why
 
 ---
