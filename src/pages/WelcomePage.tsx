@@ -78,7 +78,7 @@ export function WelcomePage() {
             <ActionCard
               icon={<FileText className="size-5" />}
               title="Open File"
-              description="Open a single .tex file. Its folder becomes the project."
+              description="Open a single .tex file on its own, without the rest of its folder."
               shortcut={shortcutLabel('file.open')}
               onClick={() => void chooseFile()}
               disabled={status === 'opening'}

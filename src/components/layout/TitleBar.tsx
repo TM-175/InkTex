@@ -4,6 +4,7 @@ import {
   Columns2,
   Copy,
   Download,
+  FileText,
   FolderOpen,
   Hammer,
   PanelBottom,
@@ -22,6 +23,7 @@ import { IS_MAC, shortcutLabel } from '@/services/shortcuts';
 import { Button, IconButton } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Feedback';
 import { cn } from '@/utils/cn';
+import { basename } from '@/utils/path';
 import type { CompilerKind } from '@/types/compile';
 
 const COMPILERS: { value: CompilerKind; label: string }[] = [
@@ -81,6 +83,23 @@ export function TitleBar() {
 
         {project === null ? (
           <span className="text-sm text-content-muted">No project open</span>
+        ) : project.openedFile !== null ? (
+          // Opened as a single file: label with the file, not its folder — the
+          // folder was never "opened" and the explorer does not show it.
+          <>
+            <FileText className="size-4 shrink-0 text-accent" />
+            <div className="min-w-0">
+              <div className="truncate text-sm leading-tight font-medium text-content-primary">
+                {basename(project.openedFile)}
+              </div>
+              <div
+                className="truncate text-[0.6875rem] leading-tight text-content-muted"
+                title={project.root}
+              >
+                {project.root}
+              </div>
+            </div>
+          </>
         ) : (
           <>
             <FolderOpen className="size-4 shrink-0 text-accent" />

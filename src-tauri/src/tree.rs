@@ -195,6 +195,38 @@ pub fn build(root: &Path) -> AppResult<(FileNode, usize)> {
     Ok((node, counter))
 }
 
+/// Build a tree containing only `file`, not the rest of its directory.
+///
+/// Used when the user opened a single file rather than a folder: the file's
+/// parent directory still has to be the project root, since `\input` and
+/// relative asset paths resolve against it — but the explorer must not show
+/// every other file living in a folder the user never chose to open, such as
+/// `~/Downloads` or `~/Desktop`.
+pub fn build_single_file(root: &Path, file: &Path) -> AppResult<(FileNode, usize)> {
+    let node = node_for(root, file)?;
+    if node.is_directory {
+        return Err(AppError::invalid_project(format!(
+            "“{}” is a folder, not a file.",
+            file.display()
+        )));
+    }
+
+    let root_node = FileNode {
+        path: String::new(),
+        name: root
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| root.to_string_lossy().into_owned()),
+        kind: FileKind::Directory,
+        is_directory: true,
+        size: 0,
+        modified: crate::commands::fs_ops::modified_millis(root),
+        children: Some(vec![node]),
+    };
+
+    Ok((root_node, 1))
+}
+
 /// Collect every `.tex` path in the tree, breadth-first.
 fn collect_tex_files(node: &FileNode, out: &mut Vec<String>) {
     if let Some(children) = &node.children {
@@ -377,6 +409,26 @@ mod tests {
         assert_eq!(count, 2);
         // Directories sort first.
         assert!(children[0].is_directory);
+
+        fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn single_file_tree_excludes_siblings() {
+        let root = temp_project("single-file");
+        fs::write(root.join("notes.tex"), "\\documentclass{article}").unwrap();
+        // A sibling that must not show up: opening one file must not open the
+        // rest of a folder that might hold thousands of unrelated files.
+        fs::write(root.join("unrelated.tex"), "\\documentclass{article}").unwrap();
+        fs::create_dir_all(root.join("other-project")).unwrap();
+
+        let (tree, count) = build_single_file(&root, &root.join("notes.tex")).unwrap();
+        let children = tree.children.as_ref().unwrap();
+
+        assert_eq!(count, 1);
+        assert_eq!(children.len(), 1);
+        assert_eq!(children[0].name, "notes.tex");
+        assert_eq!(children[0].path, "notes.tex");
 
         fs::remove_dir_all(&root).ok();
     }

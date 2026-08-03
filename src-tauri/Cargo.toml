@@ -39,6 +39,11 @@ shell-words = "1.1"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+# One AppKit call — hiding the native window title, which Tauri's overlay
+# title-bar style leaves drawn on top of our own header.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+
 [dev-dependencies]
 # `test` provides the mock runtime the engine integration tests build an
 # AppHandle from, without needing a real webview.

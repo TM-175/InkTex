@@ -364,7 +364,10 @@ export function PdfViewer({ source, version }: PdfViewerProps) {
           >
             {Array.from({ length: document.numPages }, (_, index) => (
               <PdfPage
-                key={`${version}-${index + 1}`}
+                // Keyed by page number alone: keying on the build version too
+                // would discard every canvas on each rebuild, so the preview
+                // emptied out and redrew from scratch after every compile.
+                key={index + 1}
                 document={document}
                 pageNumber={index + 1}
                 scale={scale}

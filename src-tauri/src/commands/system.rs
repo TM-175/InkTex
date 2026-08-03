@@ -33,20 +33,29 @@ pub async fn open_new_window(app: AppHandle) -> AppResult<String> {
     // one after a window is closed and reopened, so use the clock.
     let label = format!("main-{}", crate::latex::engine::epoch_millis());
 
-    let window =
+    let builder =
         tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::App("index.html".into()))
             .title("InkTex")
             .inner_size(1440.0, 900.0)
             .min_inner_size(900.0, 600.0)
             .resizable(true)
-            .center()
-            .build()
-            .map_err(|e| {
-                AppError::new(
-                    ErrorKind::Internal,
-                    format!("A new window could not be opened: {e}"),
-                )
-            })?;
+            .center();
+
+    // The frontend draws its own title bar and insets it for the traffic
+    // lights, so a second window has to use the same overlay chrome as the one
+    // in `tauri.conf.json` — otherwise it gets a second, native title bar and
+    // 80px of empty space where the traffic lights are not.
+    #[cfg(target_os = "macos")]
+    let builder = builder.title_bar_style(tauri::TitleBarStyle::Overlay);
+
+    let window = builder.build().map_err(|e| {
+        AppError::new(
+            ErrorKind::Internal,
+            format!("A new window could not be opened: {e}"),
+        )
+    })?;
+
+    crate::platform::hide_native_title(&window);
 
     // Offset each new window so it does not land exactly on the previous one.
     if let Ok(position) = window.outer_position() {

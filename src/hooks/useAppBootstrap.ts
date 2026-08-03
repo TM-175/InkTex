@@ -12,7 +12,7 @@ import { settingsApi } from '@/tauri';
 import { setupMonaco } from '@/services/monacoSetup';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useProjectStore } from '@/store/projectStore';
-import { restoreExistingPdf, useCompileStore } from '@/store/compileStore';
+import { adoptExistingOutput, useCompileStore } from '@/store/compileStore';
 
 export function useAppBootstrap(): { ready: boolean } {
   const [ready, setReady] = useState(false);
@@ -91,6 +91,7 @@ async function restoreLastSession(): Promise<void> {
     if (exists) useProjectStore.getState().setActiveTab(session.activeFile);
   }
 
-  // Show the PDF from the previous session before the first rebuild.
-  await restoreExistingPdf();
+  // `openProject` already adopted the main document's output; the restored tabs
+  // may have made a different document active, so resolve it once more.
+  await adoptExistingOutput();
 }

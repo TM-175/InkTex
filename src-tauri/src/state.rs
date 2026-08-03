@@ -64,19 +64,39 @@ impl CompileState {
 #[derive(Default)]
 pub struct ProjectState {
     root: Mutex<Option<PathBuf>>,
+    /// Set when the user opened one file rather than a folder.
+    ///
+    /// The root is still that file's directory — `\input` and `\includegraphics`
+    /// resolve relative to it, and the compiler has to run somewhere — but the
+    /// project is only ever this one file. Opening `~/Downloads/notes.tex` must
+    /// not turn all of `~/Downloads` into a project.
+    only_file: Mutex<Option<PathBuf>>,
 }
 
 impl ProjectState {
     pub fn set(&self, root: PathBuf) {
         *self.root.lock().expect("project lock") = Some(root);
+        *self.only_file.lock().expect("project lock") = None;
+    }
+
+    /// Open a single file, using its directory as the (invisible) root.
+    pub fn set_single_file(&self, root: PathBuf, file: PathBuf) {
+        *self.root.lock().expect("project lock") = Some(root);
+        *self.only_file.lock().expect("project lock") = Some(file);
     }
 
     pub fn clear(&self) {
         *self.root.lock().expect("project lock") = None;
+        *self.only_file.lock().expect("project lock") = None;
     }
 
     pub fn get(&self) -> Option<PathBuf> {
         self.root.lock().expect("project lock").clone()
+    }
+
+    /// The lone file this window is scoped to, if it was opened as one.
+    pub fn only_file(&self) -> Option<PathBuf> {
+        self.only_file.lock().expect("project lock").clone()
     }
 
     /// The active root, or a friendly error when no project is open.

@@ -21,15 +21,28 @@ pub struct NewProjectFile {
 }
 
 /// Assemble the [`ProjectInfo`] payload for an already-validated root.
-fn describe(app: &AppHandle, root: &Path) -> AppResult<ProjectInfo> {
-    let (tree_root, file_count) = tree::build(root)?;
+///
+/// `only_file` scopes the tree to that one file when the project was opened as
+/// a single file rather than a folder.
+fn describe(app: &AppHandle, root: &Path, only_file: Option<&Path>) -> AppResult<ProjectInfo> {
+    let (tree_root, file_count) = match only_file {
+        Some(file) => tree::build_single_file(root, file)?,
+        None => tree::build(root)?,
+    };
+
+    let opened_file = only_file.map(|file| paths::relative_to(root, file));
 
     // A main document the user picked explicitly beats the heuristic, but only
-    // while the file still exists.
-    let stored = store::main_document_for(app, &root.to_string_lossy())
-        .filter(|relative| root.join(relative).is_file());
-
-    let main_document = stored.or_else(|| tree::detect_main_document(root, &tree_root));
+    // while the file still exists. A single-file project has only one possible
+    // document, so there is nothing to guess.
+    let main_document = match &opened_file {
+        Some(file) => Some(file.clone()),
+        None => {
+            let stored = store::main_document_for(app, &root.to_string_lossy())
+                .filter(|relative| root.join(relative).is_file());
+            stored.or_else(|| tree::detect_main_document(root, &tree_root))
+        }
+    };
 
     Ok(ProjectInfo {
         root: root.to_string_lossy().into_owned(),
@@ -38,8 +51,7 @@ fn describe(app: &AppHandle, root: &Path) -> AppResult<ProjectInfo> {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| root.to_string_lossy().into_owned()),
         main_document,
-        // Set by `open_project` only when a single file was opened.
-        opened_file: None,
+        opened_file,
         tree: tree_root,
         file_count,
     })
@@ -85,18 +97,25 @@ pub fn open_project(
     // Confirm we can actually read it before committing to the switch.
     fs::read_dir(&root).map_err(|e| AppError::from_io(&e, &root))?;
 
-    let mut info = describe(&app, &root)?;
+    // A single file's path also needs to survive the same canonicalisation as
+    // the root, so both agree about symlinks and relative segments.
+    let single_file = single_file
+        .map(|file| file.canonicalize().map_err(|e| AppError::from_io(&e, &file)))
+        .transpose()?;
 
-    // A file the user picked explicitly outranks the main-document heuristic.
-    if let Some(file) = single_file {
-        info.main_document = Some(paths::relative_to(&root, &file));
-        info.opened_file = info.main_document.clone();
+    let info = describe(&app, &root, single_file.as_deref())?;
+
+    match &single_file {
+        Some(file) => ws.project.set_single_file(root.clone(), file.clone()),
+        None => ws.project.set(root.clone()),
     }
 
-    ws.project.set(root.clone());
     // A watch failure is not fatal — the project is usable, it just will not
     // auto-refresh — so it is reported to the UI rather than propagated.
-    if let Err(err) = ws.watcher.watch(app.clone(), window.label(), &root) {
+    if let Err(err) =
+        ws.watcher
+            .watch(app.clone(), window.label(), &root, single_file.as_deref())
+    {
         let _ = tauri::Emitter::emit_to(&app, window.label(), "project://watch-error", err.message);
     }
 
@@ -157,7 +176,10 @@ pub fn create_project(
 pub fn refresh_tree(window: tauri::Window, state: State<'_, AppState>) -> AppResult<FileNode> {
     let ws = state.for_window(window.label());
     let root = ws.project.require()?;
-    let (node, _) = tree::build(&root)?;
+    let (node, _) = match ws.project.only_file() {
+        Some(file) => tree::build_single_file(&root, &file)?,
+        None => tree::build(&root)?,
+    };
     Ok(node)
 }
 
@@ -170,7 +192,7 @@ pub fn reload_project(
 ) -> AppResult<ProjectInfo> {
     let ws = state.for_window(window.label());
     let root = ws.project.require()?;
-    describe(&app, &root)
+    describe(&app, &root, ws.project.only_file().as_deref())
 }
 
 /// Record the user's explicit choice of main document for this project.

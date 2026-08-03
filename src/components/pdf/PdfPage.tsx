@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import { renderScale } from '@/services/pdfService';
+import { useWindowVisible } from '@/hooks/useWindowVisible';
 import { cn } from '@/utils/cn';
 
 interface PdfPageProps {
@@ -28,7 +29,20 @@ export function PdfPage({ document, pageNumber, scale, priority, onMeasure }: Pd
 
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const [visible, setVisible] = useState(priority);
-  const [rendered, setRendered] = useState(false);
+  /**
+   * Whether the canvas currently holds a drawn page.
+   *
+   * Deliberately not cleared when a re-render begins: a superseded or stalled
+   * render must never turn an already-drawn page back into a blank rectangle.
+   * It resets only where the pixels genuinely go away — when the bitmap is
+   * resized for a new zoom level.
+   */
+  const [painted, setPainted] = useState(false);
+
+  // PDF.js rasterises from `requestAnimationFrame`, which macOS suspends while
+  // the window is buried. Rendering then stalls mid-page, so wait for a
+  // compositor instead of starting work that cannot finish.
+  const composited = useWindowVisible();
 
   // Measure the page up front; this is cheap and does not rasterise anything.
   useEffect(() => {
@@ -75,10 +89,9 @@ export function PdfPage({ document, pageNumber, scale, priority, onMeasure }: Pd
 
   // Rasterise.
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || !composited) return;
 
     let canceled = false;
-    setRendered(false);
 
     const draw = async (): Promise<void> => {
       const page = await document.getPage(pageNumber);
@@ -92,8 +105,18 @@ export function PdfPage({ document, pageNumber, scale, priority, onMeasure }: Pd
 
       // Back the canvas at device resolution, then scale it down with CSS so
       // text stays crisp on a Retina display.
-      canvas.width = Math.floor(viewport.width * pixelRatio);
-      canvas.height = Math.floor(viewport.height * pixelRatio);
+      const width = Math.floor(viewport.width * pixelRatio);
+      const height = Math.floor(viewport.height * pixelRatio);
+
+      // Assigning to width or height clears the bitmap even when the value is
+      // unchanged, so only do it when the geometry really moved. A rebuild at
+      // the same zoom then redraws over the previous page instead of blanking
+      // the preview first.
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+        setPainted(false);
+      }
       canvas.style.width = `${viewport.width}px`;
       canvas.style.height = `${viewport.height}px`;
 
@@ -102,7 +125,9 @@ export function PdfPage({ document, pageNumber, scale, priority, onMeasure }: Pd
 
       context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
 
-      // Abandon any render still running for a previous zoom level.
+      // Abandon any render still running for a previous zoom level. PDF.js
+      // refuses to drive two renders onto one canvas, so this has to happen
+      // before the next `render` call rather than in the cleanup alone.
       renderTask.current?.cancel();
 
       const task = page.render({ canvas, canvasContext: context, viewport });
@@ -110,9 +135,10 @@ export function PdfPage({ document, pageNumber, scale, priority, onMeasure }: Pd
 
       try {
         await task.promise;
-        if (!canceled) setRendered(true);
+        if (!canceled) setPainted(true);
       } catch {
-        // A cancelled render rejects; that is the expected path when zooming.
+        // A cancelled render rejects; that is the expected path when zooming,
+        // and the replacement render is already on its way.
       }
     };
 
@@ -123,7 +149,7 @@ export function PdfPage({ document, pageNumber, scale, priority, onMeasure }: Pd
       renderTask.current?.cancel();
       renderTask.current = null;
     };
-  }, [visible, document, pageNumber, scale]);
+  }, [visible, composited, document, pageNumber, scale]);
 
   return (
     <div
@@ -134,9 +160,9 @@ export function PdfPage({ document, pageNumber, scale, priority, onMeasure }: Pd
     >
       <canvas
         ref={canvasRef}
-        className={cn('block transition-opacity duration-150', rendered ? 'opacity-100' : 'opacity-0')}
+        className={cn('block transition-opacity duration-150', painted ? 'opacity-100' : 'opacity-0')}
       />
-      {!rendered && (
+      {!painted && (
         <div className="absolute inset-0 flex items-center justify-center">
           <span className="text-xs text-slate-400">{pageNumber}</span>
         </div>

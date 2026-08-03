@@ -19,6 +19,7 @@ pub mod error;
 pub mod latex;
 pub mod models;
 pub mod paths;
+pub mod platform;
 pub mod state;
 pub mod store;
 pub mod tree;
@@ -33,6 +34,13 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(AppState::default())
+        .setup(|app| {
+            use tauri::Manager;
+            for window in app.webview_windows().values() {
+                platform::hide_native_title(window);
+            }
+            Ok(())
+        })
         // Release a window's project, watcher and compile slot when it closes,
         // so a background build cannot outlive the window that started it.
         .on_window_event(|window, event| {

@@ -11,12 +11,12 @@ bundle one, and it never uploads your documents anywhere.
 ## Features
 
 **Projects**
-Open any folder as a project, or open a single `.tex` file — its folder becomes
-the project, so `\input` still resolves and the explorer still shows its
-siblings. Create new projects from six templates (article, report, book,
-résumé, Beamer, homework). Recent projects are remembered, and the last one
-reopens on launch with its tabs restored. Open as many windows as you like;
-each is an independent workspace.
+Open any folder as a project, or open a single `.tex` file on its own — its
+folder resolves `\input` and relative assets for it, but the explorer shows
+only the file itself, not the rest of the folder. Create new projects from six
+templates (article, report, book, résumé, Beamer, homework). Recent projects
+are remembered, and the last one reopens on launch with its tabs restored.
+Open as many windows as you like; each is an independent workspace.
 
 **Editor**
 Monaco with a purpose-built LaTeX grammar: syntax highlighting for control

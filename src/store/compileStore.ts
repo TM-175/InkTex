@@ -56,6 +56,8 @@ interface CompileState {
   cleanAuxiliaryFiles: () => Promise<void>;
   /** Load a PDF that already exists on disk, without compiling. */
   adoptExistingPdf: (path: string) => void;
+  /** Forget the previous project's PDF, diagnostics and output. */
+  resetOutput: () => void;
 }
 
 export const useCompileStore = create<CompileState>((set, get) => ({
@@ -208,29 +210,57 @@ export const useCompileStore = create<CompileState>((set, get) => ({
   },
 
   adoptExistingPdf: (path) => {
-    set((state) => ({ pdfPath: path, pdfVersion: state.pdfVersion + 1 }));
+    set((state) =>
+      // Re-adopting the PDF already on screen must not bump the version: that
+      // would tear down a perfectly good document and re-render every page.
+      state.pdfPath === path ? state : { pdfPath: path, pdfVersion: state.pdfVersion + 1 },
+    );
+  },
+
+  resetOutput: () => {
+    set({
+      pdfPath: null,
+      result: null,
+      diagnostics: [],
+      outputLines: [],
+      // Still bumped, so a viewer holding the outgoing document reloads rather
+      // than showing the previous project's pages.
+      pdfVersion: get().pdfVersion + 1,
+    });
   },
 }));
 
 /**
- * Look for a PDF left over from a previous session so the preview is populated
- * before the first compile of a reopened project.
+ * Show the PDF already sitting in the build directory, if there is one.
+ *
+ * Called whenever a project is opened. Without this the preview claims there is
+ * nothing to show even when the document was built minutes ago — the output is
+ * right there on disk, and re-compiling to see it again is wasted work.
  */
-export async function restoreExistingPdf(): Promise<void> {
+export async function adoptExistingOutput(): Promise<void> {
   const project = currentProject();
-  if (project === null || project.mainDocument === null) return;
+  if (project === null) return;
+
+  // Match what Compile would build, so the preview and the compile button agree
+  // about which document is in view.
+  const { tabs, activePath } = useProjectStore.getState();
+  const target = resolveCompileTarget(project, tabs, activePath);
+  if (target === null) return;
 
   try {
     const outputDirectory = await compileApi.getOutputDirectory(
       currentSettings().useOutputDirectory,
     );
-    const stem = project.mainDocument.replace(/\.[^./]+$/, '').split('/').pop();
+    const stem = target.replace(/\.[^./]+$/, '').split('/').pop();
     if (stem === undefined) return;
 
     const candidate = `${outputDirectory}/${stem}.pdf`;
 
     // Reading it is the cheapest way to confirm it exists and is a valid PDF.
     await fsApi.readPdfFile(candidate);
+
+    // The project may have been closed again while this was in flight.
+    if (currentProject()?.root !== project.root) return;
     useCompileStore.getState().adoptExistingPdf(candidate);
   } catch {
     // No previous output; the preview shows its empty state until first build.

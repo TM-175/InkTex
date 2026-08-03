@@ -47,10 +47,28 @@ struct ActiveWatch {
 
 impl WatcherState {
     /// Begin watching `root`, replacing any previous watch.
-    pub fn watch(&self, app: AppHandle, window_label: &str, root: &Path) -> AppResult<()> {
+    ///
+    /// `scope` narrows the watch to a single file when the project was opened
+    /// as one: recursively watching the whole folder would pick up every other
+    /// file the user never asked to open (and, for a folder like `~/Downloads`,
+    /// could mean watching thousands of them).
+    pub fn watch(
+        &self,
+        app: AppHandle,
+        window_label: &str,
+        root: &Path,
+        scope: Option<&Path>,
+    ) -> AppResult<()> {
         // Drop the previous watcher before creating the new one so we never
         // hold two recursive watches on overlapping trees.
         self.stop();
+
+        let watch_target = scope.unwrap_or(root).to_path_buf();
+        let recursive_mode = if scope.is_some() {
+            RecursiveMode::NonRecursive
+        } else {
+            RecursiveMode::Recursive
+        };
 
         let root_owned = root.to_path_buf();
         let emit_root = root.to_path_buf();
@@ -131,11 +149,11 @@ impl WatcherState {
             .map_err(|e| AppError::internal(format!("Could not start the file watcher: {e}")))?;
 
         debouncer
-            .watch(&root_owned, RecursiveMode::Recursive)
+            .watch(&watch_target, recursive_mode)
             .map_err(|e| {
                 AppError::internal(format!(
                     "Could not watch “{}” for changes: {e}",
-                    root_owned.display()
+                    watch_target.display()
                 ))
             })?;
 

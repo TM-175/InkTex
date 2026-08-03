@@ -1726,6 +1726,7 @@ dependencies = [
  "libc",
  "notify",
  "notify-debouncer-full",
+ "objc2",
  "regex",
  "serde",
  "serde_json",

@@ -22,7 +22,7 @@ import { expandToReveal, findNode } from '@/services/fileTreeService';
 import { classifyTab } from '@/services/tabService';
 import { currentSettings } from './settingsStore';
 import { confirm, notify } from './uiStore';
-import { useCompileStore } from './compileStore';
+import { adoptExistingOutput, useCompileStore } from './compileStore';
 import { debounce } from '@/utils/debounce';
 import { basename, dirname } from '@/utils/path';
 
@@ -162,6 +162,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       }
 
       set({ status: 'opening' });
+      // Whatever was on screen belongs to the outgoing project.
+      useCompileStore.getState().resetOutput();
 
       try {
         const project = await projectApi.openProject(path, currentSettings().recentProjectsLimit);
@@ -192,6 +194,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           await get().openFile(initial);
         }
         saveSession();
+
+        // Show the last build's output straight away rather than an empty pane.
+        // Not awaited: the editor should not wait on a disk read of the PDF.
+        void adoptExistingOutput();
         return true;
       } catch (error) {
         const appError = toAppError(error, 'The project could not be opened.');
@@ -224,6 +230,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         });
 
         await get().loadRecentProjects();
+        useCompileStore.getState().resetOutput();
+
         if (project.mainDocument !== null) {
           await get().openFile(project.mainDocument);
         }
@@ -257,6 +265,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         activePath: null,
         expandedDirs: new Set(),
       });
+      useCompileStore.getState().resetOutput();
       saveSession();
     },
 
